@@ -22,7 +22,6 @@
 #include "esp_ble_mesh_sensor_model_api.h"
 
 #include "ble_mesh_example_init.h"
-#include "board.h"
 
 ///MQTT Includes///
 //#include <stdio.h>
@@ -51,10 +50,6 @@
 //static const char *TAG = "mqtt_example";
 ///MQTT Includes///
 
-/*mycode*/
-#define LED_OFF             0x0
-/*mycode*/
-
 #define TAG "EXAMPLE"
 
 #define CID_ESP             0x02E5
@@ -73,6 +68,15 @@
 #define COMP_DATA_1_OCTET(msg, offset)      (msg[offset])
 #define COMP_DATA_2_OCTET(msg, offset)      (msg[offset + 1] << 8 | msg[offset])
 
+
+static uint32_t send_opcode[] = {
+    [0] = ESP_BLE_MESH_MODEL_OP_SENSOR_DESCRIPTOR_GET,
+    [1] = ESP_BLE_MESH_MODEL_OP_SENSOR_CADENCE_GET,
+    [2] = ESP_BLE_MESH_MODEL_OP_SENSOR_SETTINGS_GET,
+    [3] = ESP_BLE_MESH_MODEL_OP_SENSOR_GET,
+    [4] = ESP_BLE_MESH_MODEL_OP_SENSOR_SERIES_GET,
+};
+
 static uint8_t  dev_uuid[ESP_BLE_MESH_OCTET16_LEN];
 //static uint16_t server_address = ESP_BLE_MESH_ADDR_UNASSIGNED;
 static uint16_t sensor_prop_id;
@@ -88,7 +92,8 @@ typedef struct {
     uint8_t  uuid[16];
     uint16_t unicast_addr;
     uint8_t  elem_num;
-    uint8_t  onoff;
+    uint8_t  temp_state;
+    uint8_t  hum_state;
 } esp_ble_mesh_node_info_t;
 
 static esp_ble_mesh_node_info_t nodes[CONFIG_BLE_MESH_MAX_PROV_NODES] = {0};
@@ -144,7 +149,7 @@ static esp_ble_mesh_prov_t provision = {
 
 /*mycode*/
 static esp_err_t example_ble_mesh_store_node_info(const uint8_t uuid[16], uint16_t unicast,
-                                                  uint8_t elem_num, uint8_t onoff_state)
+                                                  uint8_t elem_num)
 {
     int i;
 
@@ -158,7 +163,8 @@ static esp_err_t example_ble_mesh_store_node_info(const uint8_t uuid[16], uint16
             ESP_LOGW(TAG, "%s: reprovisioned device 0x%04x", __func__, unicast);
             nodes[i].unicast_addr = unicast;
             nodes[i].elem_num = elem_num;
-            nodes[i].onoff = onoff_state;
+            nodes[i].temp_state = 0;
+            nodes[i].hum_state = 0;
             return ESP_OK;
         }
     }
@@ -168,7 +174,8 @@ static esp_err_t example_ble_mesh_store_node_info(const uint8_t uuid[16], uint16
             memcpy(nodes[i].uuid, uuid, 16);
             nodes[i].unicast_addr = unicast;
             nodes[i].elem_num = elem_num;
-            nodes[i].onoff = onoff_state;
+            nodes[i].temp_state = 0;
+            nodes[i].hum_state = 0;
             return ESP_OK;
         }
     }
@@ -237,7 +244,7 @@ static esp_err_t prov_complete(uint16_t node_index, const esp_ble_mesh_octet16_t
         return ESP_FAIL;
     }
 /*mycode*/
-    err = example_ble_mesh_store_node_info(uuid, unicast, element_num, LED_OFF);
+    err = example_ble_mesh_store_node_info(uuid, unicast, element_num);
     if (err) {
         ESP_LOGE(TAG, "%s: Store node info failed", __func__);
         return ESP_FAIL;
@@ -606,7 +613,7 @@ void example_ble_mesh_send_sensor_message(uint32_t opcode)
 	        ESP_LOGE(TAG, "Failed to send sensor message 0x%04" PRIx32, opcode);
 	    }
 	    
-	    ESP_LOGI("SENSOR CLIENT", "onoff value stored: %d",node->onoff);
+	    ESP_LOGI("SENSOR CLIENT", "temp value stored: %d",node->temp_state);
 	}
 }
 
@@ -730,6 +737,11 @@ static void example_ble_mesh_sensor_client_cb(esp_ble_mesh_sensor_client_cb_even
                 ESP_LOG_BUFFER_HEX("Sensor Data", param->status_cb.sensor_status.marshalled_sensor_data->data,
                     param->status_cb.sensor_status.marshalled_sensor_data->len);
                 uint8_t *data = param->status_cb.sensor_status.marshalled_sensor_data->data;
+                node->temp_state = data[0x02];
+                node->hum_state = data[0x05];
+                ESP_LOG_BUFFER_HEX("Sensor Data temp_state:", data + 0x02, 1);
+                ESP_LOG_BUFFER_HEX("Sensor Data hum_state", data + 0x05, 1);
+/*                
                 uint16_t length = 0;
                 for (; length < param->status_cb.sensor_status.marshalled_sensor_data->len; ) {
                     uint8_t fmt = ESP_BLE_MESH_GET_SENSOR_DATA_FORMAT(data);
@@ -741,7 +753,7 @@ static void example_ble_mesh_sensor_client_cb(esp_ble_mesh_sensor_client_cb_even
                         fmt == ESP_BLE_MESH_SENSOR_DATA_FORMAT_A ? "A" : "B", data_len, prop_id);
                     if (data_len != ESP_BLE_MESH_SENSOR_DATA_ZERO_LEN) {
                         ESP_LOG_BUFFER_HEX("Sensor Data", data + mpid_len, data_len + 1);
-                        node->onoff = data[mpid_len];
+                        node->temp_state = data[mpid_len];
                         length += mpid_len + data_len + 1;
                         data += mpid_len + data_len + 1;
                     } else {
@@ -749,7 +761,9 @@ static void example_ble_mesh_sensor_client_cb(esp_ble_mesh_sensor_client_cb_even
                         data += mpid_len;
                     }
                 }
+*/
             }
+
             break;
         case ESP_BLE_MESH_MODEL_OP_SENSOR_COLUMN_GET:
             ESP_LOGI(TAG, "Sensor Column Status, opcode 0x%04" PRIx32 ", Sensor Property ID 0x%04x",
@@ -842,7 +856,6 @@ static esp_err_t ble_mesh_init(void)
     return ESP_OK;
 }
 
-/////////////////////////MQTT////////////////////////////
 static void log_error_if_nonzero(const char *message, int error_code)
 {
     if (error_code != 0) {
@@ -850,60 +863,51 @@ static void log_error_if_nonzero(const char *message, int error_code)
     }
 }
 
-/*
- * @brief Event handler registered to receive MQTT events
- *
- *  This function is called by the MQTT client event loop.
- *
- * @param handler_args user data registered to the event.
- * @param base Event base for the handler(always MQTT Base in this example).
- * @param event_id The id for the received event.
- * @param event_data The data for the event, esp_mqtt_event_handle_t.
- */
+/* Event handler registered to receive MQTT events
+ * This function is called by the MQTT client event loop. */
+ 
 static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data)
 {
     ESP_LOGD(TAG, "Event dispatched from event loop base=%s, event_id=%" PRIi32 "", base, event_id);
     esp_mqtt_event_handle_t event = event_data;
-    esp_mqtt_client_handle_t client = event->client;
-    int msg_id;
+//    esp_mqtt_client_handle_t client = event->client;
+//    int msg_id;
     switch ((esp_mqtt_event_id_t)event_id) {
     case MQTT_EVENT_CONNECTED:
         ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
-        ESP_LOGI(TAG, "Wating 10 seconds after connection");
-        vTaskDelay(15000 / portTICK_PERIOD_MS);
-        ESP_LOGI(TAG, "Time expired");
-        msg_id = esp_mqtt_client_publish(client, "master/client123/writeattributevalue/writeAttribute/6bFMXacrKNdld0sY87gBCF", "1", 0, 1, 0);
-        ESP_LOGI(TAG, "my sent publish successful, msg_id=%d", msg_id);
-
+//        ESP_LOGI(TAG, "Wating 10 seconds after connection");
+//        vTaskDelay(15000 / portTICK_PERIOD_MS);
+//        ESP_LOGI(TAG, "Time expired");
+//        msg_id = esp_mqtt_client_publish(client, "master/client123/writeattributevalue/writeAttribute/6bFMXacrKNdld0sY87gBCF", "1", 0, 1, 0);
+//        ESP_LOGI(TAG, "my sent publish successful, msg_id=%d", msg_id);
         //msg_id = esp_mqtt_client_subscribe(client, "/topic/qos0", 0);
         //ESP_LOGI(TAG, "sent subscribe successful, msg_id=%d", msg_id);
-
-        //msg_id = esp_mqtt_client_subscribe(client, "/topic/qos1", 1);
-        //ESP_LOGI(TAG, "sent subscribe successful, msg_id=%d", msg_id);
-
-        //msg_id = esp_mqtt_client_unsubscribe(client, "/topic/qos1");
-        //ESP_LOGI(TAG, "sent unsubscribe successful, msg_id=%d", msg_id);
         break;
+        
     case MQTT_EVENT_DISCONNECTED:
         ESP_LOGI(TAG, "MQTT_EVENT_DISCONNECTED");
         break;
 
     case MQTT_EVENT_SUBSCRIBED:
         ESP_LOGI(TAG, "MQTT_EVENT_SUBSCRIBED, msg_id=%d", event->msg_id);
-        msg_id = esp_mqtt_client_publish(client, "/topic/qos0", "data", 0, 0, 0);
-        ESP_LOGI(TAG, "sent publish successful, msg_id=%d", msg_id);
+//        msg_id = esp_mqtt_client_publish(client, "/topic/qos0", "data", 0, 0, 0);
+//        ESP_LOGI(TAG, "sent publish successful, msg_id=%d", msg_id);
         break;
+        
     case MQTT_EVENT_UNSUBSCRIBED:
         ESP_LOGI(TAG, "MQTT_EVENT_UNSUBSCRIBED, msg_id=%d", event->msg_id);
         break;
+        
     case MQTT_EVENT_PUBLISHED:
         ESP_LOGI(TAG, "MQTT_EVENT_PUBLISHED, msg_id=%d", event->msg_id);
         break;
+        
     case MQTT_EVENT_DATA:
         ESP_LOGI(TAG, "MQTT_EVENT_DATA");
-        printf("TOPIC=%.*s\r\n", event->topic_len, event->topic);
-        printf("DATA=%.*s\r\n", event->data_len, event->data);
+//        printf("TOPIC=%.*s\r\n", event->topic_len, event->topic);
+//        printf("DATA=%.*s\r\n", event->data_len, event->data);
         break;
+        
     case MQTT_EVENT_ERROR:
         ESP_LOGI(TAG, "MQTT_EVENT_ERROR");
         if (event->error_handle->error_type == MQTT_ERROR_TYPE_TCP_TRANSPORT) {
@@ -911,64 +915,24 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
             log_error_if_nonzero("reported from tls stack", event->error_handle->esp_tls_stack_err);
             log_error_if_nonzero("captured as transport's socket errno",  event->error_handle->esp_transport_sock_errno);
             ESP_LOGI(TAG, "Last errno string (%s)", strerror(event->error_handle->esp_transport_sock_errno));
-
         }
         break;
+        
     default:
         ESP_LOGI(TAG, "Other event id:%d", event->event_id);
         break;
     }
 }
 
-static void mqtt_app_start(void)
-{
 
-    esp_mqtt_client_config_t mqtt_cfg = {
-        .broker.address.uri = "mqtt://192.168.1.10:1883",
-        .credentials.client_id = "client123",
-        .credentials.authentication.password = "HbOvli0ynU6q2oWOLltK7ece0GS8b22A",
-        .credentials.username = "master:mqttuser"
-    };
-
-	
-/*	
-    esp_mqtt_client_config_t mqtt_cfg = {
-        .broker.address.uri = "mqtt://localhost:8883",
-    };
-*/    
+esp_mqtt_client_config_t mqtt_cfg = {
+    .broker.address.uri = "mqtt://192.168.1.10:1883",
+    .credentials.client_id = "client123",
+    .credentials.authentication.password = "HbOvli0ynU6q2oWOLltK7ece0GS8b22A",
+    .credentials.username = "master:mqttuser"
+};
+        
     
-#if CONFIG_BROKER_URL_FROM_STDIN
-    char line[128];
-
-    if (strcmp(mqtt_cfg.broker.address.uri, "FROM_STDIN") == 0) {
-        int count = 0;
-        printf("Please enter url of mqtt broker\n");
-        while (count < 128) {
-            int c = fgetc(stdin);
-            if (c == '\n') {
-                line[count] = '\0';
-                break;
-            } else if (c > 0 && c < 127) {
-                line[count] = c;
-                ++count;
-            }
-            vTaskDelay(10 / portTICK_PERIOD_MS);
-        }
-        mqtt_cfg.broker.address.uri = line;
-        printf("Broker url: %s\n", line);
-    } else {
-        ESP_LOGE(TAG, "Configuration mismatch: wrong broker url");
-        abort();
-    }
-#endif /* CONFIG_BROKER_URL_FROM_STDIN */
-
-
-    esp_mqtt_client_handle_t client = esp_mqtt_client_init(&mqtt_cfg);
-    /* The last argument may be used to pass data to the event handler, in this example mqtt_event_handler */
-    esp_mqtt_client_register_event(client, ESP_EVENT_ANY_ID, mqtt_event_handler, NULL);
-    esp_mqtt_client_start(client);
-}
-/////////////////////////MQTT////////////////////////////
 
 void app_main(void)
 {
@@ -982,8 +946,6 @@ void app_main(void)
         err = nvs_flash_init();
     }
     ESP_ERROR_CHECK(err);
-
-    board_init();
 
     err = bluetooth_init();
     if (err != ESP_OK) {
@@ -999,20 +961,38 @@ void app_main(void)
         ESP_LOGE(TAG, "Bluetooth mesh init failed (err %d)", err);
     }
     
-    ///MQTT///
-    
     ESP_ERROR_CHECK(nvs_flash_init());
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
-    /* This helper function configures Wi-Fi or Ethernet, as selected in menuconfig.
-     * Read "Establishing Wi-Fi or Ethernet Connection" section in
-     * examples/protocols/README.md for more information about this function.
-     */
+    /* WIFI - Configuration */
     ESP_ERROR_CHECK(example_connect());
 
-    mqtt_app_start();
-	
-	///MQTT///
-    
+	esp_mqtt_client_handle_t client = esp_mqtt_client_init(&mqtt_cfg);
+	/* The last argument may be used to pass data to the event handler */
+    esp_mqtt_client_register_event(client, ESP_EVENT_ANY_ID, mqtt_event_handler, NULL);
+    esp_mqtt_client_start(client);
+
+	while(1)
+	{
+		ESP_LOGI("LOOP", "Sending GET Message to Sensors...");
+        vTaskDelay(5000 / portTICK_PERIOD_MS);
+		example_ble_mesh_send_sensor_message(ESP_BLE_MESH_MODEL_OP_SENSOR_GET);
+		
+		ESP_LOGI("LOOP", "TEMPERATURE DATA: %d", nodes[0].temp_state);
+		ESP_LOGI("LOOP", "HUMIDITY DATA: %d", nodes[0].hum_state);
+
+		vTaskDelay(5000 / portTICK_PERIOD_MS);
+        ESP_LOGI("LOOP", "Publishing temperature values to MQTT Broker...");
+        char str_temperature[10];
+        sprintf(str_temperature, "%u", nodes[0].temp_state);
+        esp_mqtt_client_publish(client, "master/client123/writeattributevalue/temperature/40rk67EDRU27UNN5QJbA6N", "2", 0, 1, 0);
+
+		vTaskDelay(5000 / portTICK_PERIOD_MS);
+        ESP_LOGI("LOOP", "Publishing humidity values to MQTT Broker...");
+        char str_humidity[10];
+        sprintf(str_humidity, "%u", nodes[0].temp_state);
+        esp_mqtt_client_publish(client, "master/client123/writeattributevalue/humidity/40rk67EDRU27UNN5QJbA6N", str_humidity, 0, 1, 0);
+       
+	}  
 }
