@@ -12,6 +12,7 @@
 #include <inttypes.h>
 
 #include "esp_log.h"
+#include "mesh/utils.h"
 #include "nvs_flash.h"
 
 #include "esp_ble_mesh_defs.h"
@@ -57,7 +58,7 @@
 #define PROV_OWN_ADDR       0x0001
 
 #define MSG_SEND_TTL        3
-#define MSG_TIMEOUT         0
+#define MSG_TIMEOUT         10000
 #define MSG_ROLE            ROLE_PROVISIONER
 
 #define COMP_DATA_PAGE_0    0x00
@@ -68,6 +69,43 @@
 #define COMP_DATA_1_OCTET(msg, offset)      (msg[offset])
 #define COMP_DATA_2_OCTET(msg, offset)      (msg[offset + 1] << 8 | msg[offset])
 
+#define ID_OFFSET_IN_UUID	2
+
+typedef struct {
+	uint8_t  id;
+	char* topic_temp_val;
+	char* topic_mois_val;
+	char* topic_battery_val;
+	char* topic_temp_err;
+	char* topic_mois_err;
+} openremote_thing_t;
+
+static openremote_thing_t or_things[3] = {
+	[0] = {
+		.id = 0x01,
+		.topic_temp_val = "master/client123/writeattributevalue/temperature/40rk67EDRU27UNN5QJbA6N",
+		.topic_mois_val = "master/client123/writeattributevalue/humidity/40rk67EDRU27UNN5QJbA6N",
+		.topic_battery_val = "c",
+		.topic_temp_err = "d",
+		.topic_mois_err = "e"	
+	},
+	[1] = {
+		.id = 0x02,
+		.topic_temp_val = "a",
+		.topic_mois_val = "b",
+		.topic_battery_val = "c",
+		.topic_temp_err = "d",
+		.topic_mois_err = "e"	
+	},
+	[2] = {
+		.id = 0x03,
+		.topic_temp_val = "a",
+		.topic_mois_val = "b",
+		.topic_battery_val = "c",
+		.topic_temp_err = "d",
+		.topic_mois_err = "e"		
+	}	
+};
 
 static uint32_t send_opcode[] = {
     [0] = ESP_BLE_MESH_MODEL_OP_SENSOR_DESCRIPTOR_GET,
@@ -94,9 +132,11 @@ typedef struct {
     uint8_t  elem_num;
     float temp_state;
     float moisture_state;
+    uint16_t battery_state;
+    
 } esp_ble_mesh_node_info_t;
 
-static esp_ble_mesh_node_info_t nodes[CONFIG_BLE_MESH_MAX_PROV_NODES] = {0};
+static esp_ble_mesh_node_info_t nodes[3] = {0};
 /*mycode*/
 
 static esp_ble_mesh_cfg_srv_t config_server = {
@@ -162,6 +202,7 @@ static esp_err_t example_ble_mesh_store_node_info(const uint8_t uuid[16], uint16
             nodes[i].elem_num = elem_num;
             nodes[i].temp_state = 0.0;
             nodes[i].moisture_state = 0.0;
+            nodes[i].battery_state = 0;
             return ESP_OK;
         }
     }
@@ -173,11 +214,24 @@ static esp_err_t example_ble_mesh_store_node_info(const uint8_t uuid[16], uint16
             nodes[i].elem_num = elem_num;
             nodes[i].temp_state = 0.0;
             nodes[i].moisture_state = 0.0;
+            nodes[i].battery_state = 0;
             return ESP_OK;
         }
     }
 
     return ESP_FAIL;
+}
+
+static esp_ble_mesh_node_info_t *example_ble_mesh_get_node_info_by_id(uint8_t id)
+{
+    for (int i = 0; i < ARRAY_SIZE(nodes); i++) {
+        if (nodes[i].uuid[ID_OFFSET_IN_UUID] == id)
+        {
+            return &nodes[i];
+        }
+    }
+
+    return NULL;
 }
 
 static esp_ble_mesh_node_info_t *example_ble_mesh_get_node_info(uint16_t unicast)
@@ -550,25 +604,95 @@ static void example_ble_mesh_config_client_cb(esp_ble_mesh_cfg_client_cb_event_t
     }
 }
 
+void ble_mesh_send_sensor_message(uint32_t opcode, uint8_t id)
+{
+    esp_ble_mesh_sensor_client_get_state_t get = {0};
+    esp_ble_mesh_client_common_param_t common = {0};
+    esp_err_t err = ESP_OK;
+
+	esp_ble_mesh_node_info_t *node = NULL;
+	
+    node = example_ble_mesh_get_node_info_by_id(id);
+    
+    if (!node) {
+        ESP_LOGE(TAG, "%s: Get node info failed", __func__);
+        return;
+    }
+    
+    example_ble_mesh_set_msg_common(&common, node, sensor_client.model, opcode);
+    switch (opcode) {
+    case ESP_BLE_MESH_MODEL_OP_SENSOR_CADENCE_GET:
+        get.cadence_get.property_id = sensor_prop_id;
+        break;
+    case ESP_BLE_MESH_MODEL_OP_SENSOR_SETTINGS_GET:
+        get.settings_get.sensor_property_id = sensor_prop_id;
+        break;
+    case ESP_BLE_MESH_MODEL_OP_SENSOR_SERIES_GET:
+        get.series_get.property_id = sensor_prop_id;
+        break;
+    default:
+        break;
+    }
+
+    err = esp_ble_mesh_sensor_client_get_state(&common, &get);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to send sensor message 0x%04" PRIx32, opcode);
+    }
+    
+    ESP_LOGI("SENSOR CLIENT", "temp value stored: %f",node->temp_state);
+
+}
+
+void ble_mesh_send_sensor_set_message(uint32_t opcode, uint8_t id)
+{
+	ESP_LOGI("SENDING SET CADENCE MESSAGE", "Calling function");
+    esp_ble_mesh_sensor_client_set_state_t set = {0};
+    esp_ble_mesh_client_common_param_t common = {0};
+    esp_err_t err = ESP_OK;
+
+	esp_ble_mesh_node_info_t *node = NULL;
+	
+    node = example_ble_mesh_get_node_info_by_id(id);
+    
+    if (!node) {
+        ESP_LOGE(TAG, "%s: Get node info failed", __func__);
+        return;
+    }
+    
+    ESP_LOGI("SENDING SET CADENCE MESSAGE", "set msg common");
+    example_ble_mesh_set_msg_common(&common, node, sensor_client.model, opcode);
+    switch (opcode) {
+    case ESP_BLE_MESH_MODEL_OP_SENSOR_CADENCE_SET:
+        set.cadence_set.property_id = sensor_prop_id;
+        break;
+    case ESP_BLE_MESH_MODEL_OP_SENSOR_SETTING_SET:
+        set.setting_set.sensor_property_id = sensor_prop_id;
+        break;
+    default:
+        break;
+    }
+	ESP_LOGI("SENDING SET CADENCE MESSAGE", "Sending set state");
+    err = esp_ble_mesh_sensor_client_set_state(&common, &set);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to send sensor message 0x%04" PRIx32, opcode);
+    }
+    
+    ESP_LOGI("SENDING SET CADENCE MESSAGE", "Ending function");
+
+}
+
 void example_ble_mesh_send_sensor_message(uint32_t opcode)
 {
     esp_ble_mesh_sensor_client_get_state_t get = {0};
     esp_ble_mesh_client_common_param_t common = {0};
     esp_err_t err = ESP_OK;
 
-/*
-    node = esp_ble_mesh_provisioner_get_node_with_addr(server_address);
-    if (node == NULL) {
-        ESP_LOGE(TAG, "Node 0x%04x not exists", server_address);
-        return;
-    }
-*/
 	for(uint8_t i=0; i < 1; i++ )
 	{
 		esp_ble_mesh_node_info_t *node = NULL;
 		uint32_t addr = nodes[i].unicast_addr;
 		ESP_LOGI(TAG, "iterator: %d",i);
-		//ESP_LOGI(TAG, "addr: %d",addr);
+		ESP_LOGI(TAG, "unicast addr: %d",(int) addr);
 		ESP_LOGI(TAG, "addr: %d",ARRAY_SIZE(nodes));
 	    node = example_ble_mesh_get_node_info(addr);
 	    if (!node) {
@@ -635,7 +759,7 @@ static void example_ble_mesh_sensor_timeout(uint32_t opcode)
         return;
     }
 
-    example_ble_mesh_send_sensor_message(opcode);
+	ble_mesh_send_sensor_message(opcode, 2);
 }
 
 static void example_ble_mesh_sensor_client_cb(esp_ble_mesh_sensor_client_cb_event_t event,
@@ -728,21 +852,31 @@ static void example_ble_mesh_sensor_client_cb(esp_ble_mesh_sensor_client_cb_even
 					s_temp = s_temp * (-1);
 				}
                 
-                ESP_LOGI("CONVERSION", "hexa temp value is: %x", combined);
-                ESP_LOGI("CONVERSION", "raw temp value is: %d", combined);
-                ESP_LOGI("CONVERSION", "temp value is: %f", s_temp);
+                //ESP_LOGI("CONVERSION", "hexa temp value is: %x", combined);
+                //ESP_LOGI("CONVERSION", "raw temp value is: %d", combined);
+                //ESP_LOGI("CONVERSION", "temp value is: %f", s_temp);
                 
                 /*PROCESS MOISTURE DATA*/
                 uint8_t moisture_msb = data[0x08];
                 uint8_t moisture_lsb = data[0x07];
                 uint16_t moisture_combined = moisture_msb << 8 | moisture_lsb;
                 float s_mois = ( (float) moisture_combined ) * 0.01;
-                ESP_LOGI("CONVERSION", "hexa moisture value is: %x", moisture_combined);
-                ESP_LOGI("CONVERSION", "raw moisture value is: %d", moisture_combined);
-                ESP_LOGI("CONVERSION", "moisture value is: %f", s_mois);
+                //ESP_LOGI("CONVERSION", "hexa moisture value is: %x", moisture_combined);
+                //ESP_LOGI("CONVERSION", "raw moisture value is: %d", moisture_combined);
+                //ESP_LOGI("CONVERSION", "moisture value is: %f", s_mois);
+
+ 				/*PROCESS BATTERY LEVEL*/
+                uint8_t battery_msb = data[0x0C];
+                uint8_t battery_lsb = data[0x0B];
+                uint16_t s_batt = battery_msb << 8 | battery_lsb;
+
+                //ESP_LOGI("CONVERSION", "hexa battery value is: %x", s_batt);
+                //ESP_LOGI("CONVERSION", "battery value is: %d", s_batt);
                                 
                 node->temp_state = s_temp;
                 node->moisture_state = s_mois;
+                node->battery_state = s_batt;
+                
                 //ESP_LOG_BUFFER_HEX("Sensor Data temp_state:", data + 0x02, 1);
                 //ESP_LOG_BUFFER_HEX("Sensor Data hum_state", data + 0x05, 1);
 /*                
@@ -972,19 +1106,21 @@ void app_main(void)
     /* WIFI - Configuration */
     ESP_ERROR_CHECK(example_connect());
 
-	esp_mqtt_client_handle_t client = esp_mqtt_client_init(&mqtt_cfg);
+	//esp_mqtt_client_handle_t client = esp_mqtt_client_init(&mqtt_cfg);
 	/* The last argument may be used to pass data to the event handler */
-    esp_mqtt_client_register_event(client, ESP_EVENT_ANY_ID, mqtt_event_handler, NULL);
-    esp_mqtt_client_start(client);
+    //esp_mqtt_client_register_event(client, ESP_EVENT_ANY_ID, mqtt_event_handler, NULL);
+    //esp_mqtt_client_start(client);
 
 	while(1)
 	{
+/*
 		ESP_LOGI("LOOP", "Sending GET Message to Sensors...");
         vTaskDelay(5000 / portTICK_PERIOD_MS);
 		example_ble_mesh_send_sensor_message(ESP_BLE_MESH_MODEL_OP_SENSOR_GET);
 		
 		ESP_LOGI("LOOP", "TEMPERATURE DATA: %f", nodes[0].temp_state);
 		ESP_LOGI("LOOP", "HUMIDITY DATA: %f", nodes[0].moisture_state);
+		ESP_LOGI("LOOP", "BATTERY DATA: %d", (int) nodes[0].battery_state);
 
 		vTaskDelay(5000 / portTICK_PERIOD_MS);
         ESP_LOGI("LOOP", "Publishing temperature values to MQTT Broker...");
@@ -997,6 +1133,59 @@ void app_main(void)
         char str_humidity[10];
         sprintf(str_humidity, "%f", nodes[0].temp_state);
         esp_mqtt_client_publish(client, "master/client123/writeattributevalue/humidity/40rk67EDRU27UNN5QJbA6N", str_humidity, 0, 1, 0);
-       
+*/
+	 	for(int or_thing_idx = 0; or_thing_idx < ARRAY_SIZE(or_things); or_thing_idx++)
+	 	{
+			//check if device is connected()
+			uint8_t id = or_things[or_thing_idx].id;
+			ESP_LOGI("__NEW_IMPLEMENTATION__", "uuid of or_things: %d", id);
+			
+			int node_idx = 0;
+			bool is_connected = false;
+			for(int i = 0; i < ARRAY_SIZE(nodes); i++)
+			{
+				if( id == nodes[i].uuid[ID_OFFSET_IN_UUID])
+				{
+					ESP_LOGI("__NEW_IMPLEMENTATION__", "device has been connected with uuid %d and node index %d", id, i);
+					node_idx = i;
+					is_connected = true;
+					break;
+				}	
+			}
+						
+			if(is_connected)
+			{
+				
+				
+				//ble_mesh_send_sensor_set_message(ESP_BLE_MESH_MODEL_OP_SENSOR_CADENCE_SET, id);
+				//vTaskDelay(5000 / portTICK_PERIOD_MS);
+				
+				//send_sensor_message()	
+				ESP_LOGI("__NEW_IMPLEMENTATION__", "sending message to server with uuid %d and waiting 10s", id);
+				ble_mesh_send_sensor_message(ESP_BLE_MESH_MODEL_OP_SENSOR_GET, id);			
+				vTaskDelay(10000 / portTICK_PERIOD_MS);
+				
+				//client_publish_temperature()
+				ESP_LOGI("from server", "Server ID: %d. TEMPERATURE DATA: %.2f C", id, nodes[node_idx].temp_state);
+		        char str_temperature[10];
+		        sprintf(str_temperature, "%f", nodes[node_idx].temp_state);
+		        //esp_mqtt_client_publish(client, or_things[or_thing_idx].topic_temp_val, str_temperature, 0, 1, 0);
+				
+				
+				//client_publish_moisture()
+				ESP_LOGI("from server", "Server ID: %d. MOISTURE DATA: %.2f [perc]", id, nodes[node_idx].moisture_state);
+				
+				
+				//client_publish_battery()
+				ESP_LOGI("from server", "Server ID: %d. BATTERY DATA: %d mV", id, (int) nodes[node_idx].battery_state);				
+			
+				
+			}
+			
+			
+			vTaskDelay(1000 / portTICK_PERIOD_MS);
+			
+		} 
+ 	      
 	}  
 }
