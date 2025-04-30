@@ -4,17 +4,27 @@ Proyecto realizado dentro del marco del Trabajo Profesional de Ingeniería Eletr
 ## Contenido 
 Este repositorio contiene el firmware del dispositivo del gateway del sistema.
 
-## Características Técnicas
+## Características del Hardware
 - Microcontrolador: ESP32-C3-WROOM-02 de la empresa [Espressif](https://www.espressif.com/)
 - Framework: ESP-IDF
 
-## Bluetooh
+## Comunicación de Datos
 
-El dispositivo usa Bluetooth Mesh para la comunicación con el [esp32c3-sensor](https://github.com/matiasvinas/esp32c3-sensor)
+### Bluetooth
 
-## MQTT
+El dispositivo gateway usa Bluetooth 5.0 BLE Mesh para la comunicación con los dispositivos [esp32c3-sensor](https://github.com/matiasvinas/esp32c3-sensor). El dispositivo gateway actúa como provisionador de la red de los dispositivos sensores. Para que un dispositivo sensor pueda ser provisionado a la red deberá contener valores espefícos los primeros 16 bits del UUID.
 
-El dispositivo actua como MQTT Client interactuando con el MQTT Broker de OpenRemote corriendo de forma local. Se utiliza el puerto 1883
+Cada dispositivo sensor cuenta con un ID que lo distingue del resto de los dispositivos. Cada ID tiene asignado un TDA con los tópicos relacionados a sus variables.
+
+### MQTT
+
+El dispositivo gateway actua como MQTT Client e interactua con el MQTT Broker de OpenRemote. Se utiliza el puerto 1883 (No seguro).
+
+## Identificación de los dispositivos sensores y asignación de los tópicos correspondientes
+
+El dispositivo gateway identifica primero si el dispositivo sensor "A" se encuentra dentro de la Red. En caso de ser cierto, obtiene los valores mediante Bluetooth y los envía al Broker MQTT. Luego realiza el mismo procedimiento con el resto de los dispositivo sensores. 
+
+<img src="images/main_flowchart.png" alt="Alt Text" width="300">
 
 ## Notas
 - Para la conexión WIFI se utilizó la configuración de ejemplo del esp-idf framwork. Se la puede configurar en el archivo sdkconfig.
