@@ -47,7 +47,40 @@
 
 #include "esp_log.h"
 #include "mqtt_client.h"
+#include "esp_tls.h"
+#include <stdio.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h>
+#include "esp_system.h"
+#include "esp_partition.h"
+#include "nvs_flash.h"
+#include "esp_event.h"
+#include "esp_netif.h"
+#include "protocol_examples_common.h"
 
+#include "esp_log.h"
+#include "mqtt_client.h"
+#include "esp_tls.h"
+
+#include "esp_ota_ops.h"
+#include <sys/param.h>
+#include <stdio.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h>
+#include "esp_system.h"
+#include "esp_partition.h"
+#include "nvs_flash.h"
+#include "esp_event.h"
+#include "esp_netif.h"
+#include "protocol_examples_common.h"
+
+#include "esp_log.h"
+#include "mqtt_client.h"
+#include "esp_tls.h"
+#include "esp_ota_ops.h"
+#include <sys/param.h>
 //static const char *TAG = "mqtt_example";
 ///MQTT Includes///
 
@@ -71,39 +104,52 @@
 
 #define ID_OFFSET_IN_UUID	2
 
+//MQTT CERT
+extern const uint8_t or_fiuba_tpp_pem_start[]   asm("_binary_or_fiuba_tpp_pem_start");
+extern const uint8_t or_fiuba_tpp_pem_end[]   asm("_binary_or_fiuba_tpp_pem_end");
+
+//Frequency
+uint16_t frequency = 1;
+bool irrigation_activated = false;
+
+const char topic_frequency_str[] = "master/client12345/attributevalue/frecuencia/7OmPma6DzamIanc1g2RU2j";
+const char topic_irrigation_str[] = "master/client12345/attributevalue/riego_activado/7OmPma6DzamIanc1g2RU2j";
+
+
+
 typedef struct {
 	uint8_t  id;
 	char* topic_temp_val;
 	char* topic_mois_val;
 	char* topic_battery_val;
-	char* topic_temp_err;
-	char* topic_mois_err;
+	char* topic_connection;
+	char* topic_log;
 } openremote_thing_t;
 
 static openremote_thing_t or_things[3] = {
 	[0] = {
 		.id = 0x01,
-		.topic_temp_val = "master/client123/writeattributevalue/temperature/40rk67EDRU27UNN5QJbA6N",
-		.topic_mois_val = "master/client123/writeattributevalue/humidity/40rk67EDRU27UNN5QJbA6N",
-		.topic_battery_val = "c",
-		.topic_temp_err = "d",
-		.topic_mois_err = "e"	
+		.topic_temp_val = "master/client12345/writeattributevalue/temperatura/35upINKAfdfg5uyZ6ztuzE",
+		.topic_mois_val = "master/client12345/writeattributevalue/humedad_suelo/35upINKAfdfg5uyZ6ztuzE",
+		.topic_battery_val = "master/client12345/writeattributevalue/bateria/35upINKAfdfg5uyZ6ztuzE",
+		.topic_connection = "master/client12345/writeattributevalue/conectado/35upINKAfdfg5uyZ6ztuzE",
+		.topic_log = "master/client12345/writeattributevalue/log/35upINKAfdfg5uyZ6ztuzE",	
 	},
 	[1] = {
 		.id = 0x02,
-		.topic_temp_val = "a",
-		.topic_mois_val = "b",
-		.topic_battery_val = "c",
-		.topic_temp_err = "d",
-		.topic_mois_err = "e"	
+		.topic_temp_val = "master/client12345/writeattributevalue/temperatura/4dSlnHNmdI75WdichaKMoJ",
+		.topic_mois_val = "master/client12345/writeattributevalue/humedad_suelo/4dSlnHNmdI75WdichaKMoJ",
+		.topic_battery_val = "master/client12345/writeattributevalue/bateria/4dSlnHNmdI75WdichaKMoJ",
+		.topic_connection = "master/client12345/writeattributevalue/conectado/4dSlnHNmdI75WdichaKMoJ",
+		.topic_log = "master/client12345/writeattributevalue/log/4dSlnHNmdI75WdichaKMoJ",	
 	},
 	[2] = {
 		.id = 0x03,
-		.topic_temp_val = "a",
-		.topic_mois_val = "b",
-		.topic_battery_val = "c",
-		.topic_temp_err = "d",
-		.topic_mois_err = "e"		
+		.topic_temp_val = "master/client12345/writeattributevalue/temperatura/2gMjAmepzfcx70yc9nY5KS",
+		.topic_mois_val = "master/client12345/writeattributevalue/humedad_suelo/2gMjAmepzfcx70yc9nY5KS",
+		.topic_battery_val = "master/client12345/writeattributevalue/bateria/2gMjAmepzfcx70yc9nY5KS",
+		.topic_connection = "master/client12345/writeattributevalue/conectado/2gMjAmepzfcx70yc9nY5KS",
+		.topic_log = "master/client12345/writeattributevalue/log/2gMjAmepzfcx70yc9nY5KS",		
 	}	
 };
 
@@ -135,6 +181,8 @@ typedef struct {
     uint16_t battery_state;
     
 } esp_ble_mesh_node_info_t;
+
+esp_err_t ble_mesh_send_sensor_message(uint32_t opcode, uint8_t id);
 
 static esp_ble_mesh_node_info_t nodes[3] = {0};
 /*mycode*/
@@ -200,7 +248,7 @@ static esp_err_t example_ble_mesh_store_node_info(const uint8_t uuid[16], uint16
             ESP_LOGW(TAG, "%s: reprovisioned device 0x%04x", __func__, unicast);
             nodes[i].unicast_addr = unicast;
             nodes[i].elem_num = elem_num;
-            nodes[i].temp_state = 0.0;
+            nodes[i].temp_state = 1.1;
             nodes[i].moisture_state = 0.0;
             nodes[i].battery_state = 0;
             return ESP_OK;
@@ -212,7 +260,7 @@ static esp_err_t example_ble_mesh_store_node_info(const uint8_t uuid[16], uint16
             memcpy(nodes[i].uuid, uuid, 16);
             nodes[i].unicast_addr = unicast;
             nodes[i].elem_num = elem_num;
-            nodes[i].temp_state = 0.0;
+            nodes[i].temp_state = 1.1;
             nodes[i].moisture_state = 0.0;
             nodes[i].battery_state = 0;
             return ESP_OK;
@@ -385,6 +433,9 @@ static void example_ble_mesh_provisioning_cb(esp_ble_mesh_prov_cb_event_t event,
         prov_complete(param->provisioner_prov_complete.node_idx, param->provisioner_prov_complete.device_uuid,
                       param->provisioner_prov_complete.unicast_addr, param->provisioner_prov_complete.element_num,
                       param->provisioner_prov_complete.netkey_idx);
+        uint8_t idxx = param->provisioner_prov_complete.device_uuid[2];
+        ESP_LOGI(TAG, "ESP_BLE_MESH_PROV_COMPLETE_EVT SENDING GET MESS ID: %d", idxx);
+        ble_mesh_send_sensor_message(ESP_BLE_MESH_MODEL_OP_SENSOR_GET, idxx);
         break;
     case ESP_BLE_MESH_PROVISIONER_ADD_UNPROV_DEV_COMP_EVT:
         ESP_LOGI(TAG, "ESP_BLE_MESH_PROVISIONER_ADD_UNPROV_DEV_COMP_EVT, err_code %d", param->provisioner_add_unprov_dev_comp.err_code);
@@ -604,7 +655,7 @@ static void example_ble_mesh_config_client_cb(esp_ble_mesh_cfg_client_cb_event_t
     }
 }
 
-void ble_mesh_send_sensor_message(uint32_t opcode, uint8_t id)
+esp_err_t ble_mesh_send_sensor_message(uint32_t opcode, uint8_t id)
 {
     esp_ble_mesh_sensor_client_get_state_t get = {0};
     esp_ble_mesh_client_common_param_t common = {0};
@@ -616,7 +667,7 @@ void ble_mesh_send_sensor_message(uint32_t opcode, uint8_t id)
     
     if (!node) {
         ESP_LOGE(TAG, "%s: Get node info failed", __func__);
-        return;
+        return ESP_FAIL;
     }
     
     example_ble_mesh_set_msg_common(&common, node, sensor_client.model, opcode);
@@ -640,7 +691,7 @@ void ble_mesh_send_sensor_message(uint32_t opcode, uint8_t id)
     }
     
     ESP_LOGI("SENSOR CLIENT", "temp value stored: %f",node->temp_state);
-
+	return err;
 }
 
 void ble_mesh_send_sensor_set_message(uint32_t opcode, uint8_t id)
@@ -1008,18 +1059,14 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 {
     ESP_LOGD(TAG, "Event dispatched from event loop base=%s, event_id=%" PRIi32 "", base, event_id);
     esp_mqtt_event_handle_t event = event_data;
-//    esp_mqtt_client_handle_t client = event->client;
-//    int msg_id;
+    esp_mqtt_client_handle_t client = event->client;
+
     switch ((esp_mqtt_event_id_t)event_id) {
     case MQTT_EVENT_CONNECTED:
         ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
-//        ESP_LOGI(TAG, "Wating 10 seconds after connection");
-//        vTaskDelay(15000 / portTICK_PERIOD_MS);
-//        ESP_LOGI(TAG, "Time expired");
-//        msg_id = esp_mqtt_client_publish(client, "master/client123/writeattributevalue/writeAttribute/6bFMXacrKNdld0sY87gBCF", "1", 0, 1, 0);
-//        ESP_LOGI(TAG, "my sent publish successful, msg_id=%d", msg_id);
-        //msg_id = esp_mqtt_client_subscribe(client, "/topic/qos0", 0);
-        //ESP_LOGI(TAG, "sent subscribe successful, msg_id=%d", msg_id);
+		esp_mqtt_client_subscribe(client, "master/client12345/attributevalue/frecuencia/7OmPma6DzamIanc1g2RU2j", 0);
+		esp_mqtt_client_subscribe(client, "master/client12345/attributevalue/riego_activado/7OmPma6DzamIanc1g2RU2j", 0);
+
         break;
         
     case MQTT_EVENT_DISCONNECTED:
@@ -1028,8 +1075,6 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 
     case MQTT_EVENT_SUBSCRIBED:
         ESP_LOGI(TAG, "MQTT_EVENT_SUBSCRIBED, msg_id=%d", event->msg_id);
-//        msg_id = esp_mqtt_client_publish(client, "/topic/qos0", "data", 0, 0, 0);
-//        ESP_LOGI(TAG, "sent publish successful, msg_id=%d", msg_id);
         break;
         
     case MQTT_EVENT_UNSUBSCRIBED:
@@ -1042,8 +1087,24 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         
     case MQTT_EVENT_DATA:
         ESP_LOGI(TAG, "MQTT_EVENT_DATA");
-//        printf("TOPIC=%.*s\r\n", event->topic_len, event->topic);
-//        printf("DATA=%.*s\r\n", event->data_len, event->data);
+        printf("TOPIC=%.*s\r\n", event->topic_len, event->topic);
+        printf("DATA=%.*s\r\n", event->data_len, event->data);
+        
+        char topic_event_str[80];
+        sprintf(topic_event_str, "%s", event->topic);
+        ESP_LOGI(TAG, "Topic string Length %d", event->topic_len);
+		topic_event_str[event->topic_len] = '\0';
+        
+        if (strcmp(topic_event_str, topic_frequency_str) == 0){
+			frequency  = atoi(event->data);
+			ESP_LOGI(TAG, "Frequency received: %d", frequency);
+		}
+
+        if (strcmp(topic_event_str, topic_irrigation_str) == 0){
+			irrigation_activated  = atoi(event->data);
+			ESP_LOGI(TAG, "Irrigation System: %d ", irrigation_activated);
+		}		
+        
         break;
         
     case MQTT_EVENT_ERROR:
@@ -1062,15 +1123,17 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
     }
 }
 
-
-esp_mqtt_client_config_t mqtt_cfg = {
-    .broker.address.uri = "mqtt://192.168.1.10:1883",
-    .credentials.client_id = "client123",
-    .credentials.authentication.password = "HbOvli0ynU6q2oWOLltK7ece0GS8b22A",
-    .credentials.username = "master:mqttuser"
-};
-        
-    
+const esp_mqtt_client_config_t mqtt_cfg = {
+	    .broker.address.transport = MQTT_TRANSPORT_OVER_SSL,
+	    .broker.address.port = 8883,
+	    .broker.address.path = "dev.openremote-fiuba-tpp.com",
+	    .broker.address.hostname = "dev.openremote-fiuba-tpp.com",
+	    .broker.verification.skip_cert_common_name_check = false,
+	    .broker.verification.certificate = (const char *)or_fiuba_tpp_pem_start,
+	    .credentials.client_id = "client12345",
+	    .credentials.authentication.password = "QZxFVgZmQzdh0Nh8kann3TjIZfQ5CqfC",
+	    .credentials.username = "master:matias"
+	};
 
 void app_main(void)
 {
@@ -1106,34 +1169,16 @@ void app_main(void)
     /* WIFI - Configuration */
     ESP_ERROR_CHECK(example_connect());
 
-	//esp_mqtt_client_handle_t client = esp_mqtt_client_init(&mqtt_cfg);
+	esp_mqtt_client_handle_t client = esp_mqtt_client_init(&mqtt_cfg);
 	/* The last argument may be used to pass data to the event handler */
-    //esp_mqtt_client_register_event(client, ESP_EVENT_ANY_ID, mqtt_event_handler, NULL);
-    //esp_mqtt_client_start(client);
+    esp_mqtt_client_register_event(client, ESP_EVENT_ANY_ID, mqtt_event_handler, NULL);
+    esp_mqtt_client_start(client);
 
+	//subscribe to frequency
+	
 	while(1)
 	{
-/*
-		ESP_LOGI("LOOP", "Sending GET Message to Sensors...");
-        vTaskDelay(5000 / portTICK_PERIOD_MS);
-		example_ble_mesh_send_sensor_message(ESP_BLE_MESH_MODEL_OP_SENSOR_GET);
-		
-		ESP_LOGI("LOOP", "TEMPERATURE DATA: %f", nodes[0].temp_state);
-		ESP_LOGI("LOOP", "HUMIDITY DATA: %f", nodes[0].moisture_state);
-		ESP_LOGI("LOOP", "BATTERY DATA: %d", (int) nodes[0].battery_state);
 
-		vTaskDelay(5000 / portTICK_PERIOD_MS);
-        ESP_LOGI("LOOP", "Publishing temperature values to MQTT Broker...");
-        char str_temperature[10];
-        sprintf(str_temperature, "%f", nodes[0].temp_state);
-        esp_mqtt_client_publish(client, "master/client123/writeattributevalue/temperature/40rk67EDRU27UNN5QJbA6N", "2", 0, 1, 0);
-
-		vTaskDelay(5000 / portTICK_PERIOD_MS);
-        ESP_LOGI("LOOP", "Publishing humidity values to MQTT Broker...");
-        char str_humidity[10];
-        sprintf(str_humidity, "%f", nodes[0].temp_state);
-        esp_mqtt_client_publish(client, "master/client123/writeattributevalue/humidity/40rk67EDRU27UNN5QJbA6N", str_humidity, 0, 1, 0);
-*/
 	 	for(int or_thing_idx = 0; or_thing_idx < ARRAY_SIZE(or_things); or_thing_idx++)
 	 	{
 			//check if device is connected()
@@ -1144,48 +1189,66 @@ void app_main(void)
 			bool is_connected = false;
 			for(int i = 0; i < ARRAY_SIZE(nodes); i++)
 			{
-				if( id == nodes[i].uuid[ID_OFFSET_IN_UUID])
-				{
+				if( id == nodes[i].uuid[ID_OFFSET_IN_UUID] && example_ble_mesh_get_node_info_by_id(id) != NULL )
+				{					
 					ESP_LOGI("__NEW_IMPLEMENTATION__", "device has been connected with uuid %d and node index %d", id, i);
 					node_idx = i;
 					is_connected = true;
 					break;
 				}	
 			}
+			
+			//send_sensor_message()	
+			ESP_LOGI("__NEW_IMPLEMENTATION__", "sending message to server with uuid %d and waiting 10s", id);
+			if( ESP_OK != ble_mesh_send_sensor_message(ESP_BLE_MESH_MODEL_OP_SENSOR_GET, id))
+			{
+				is_connected = false;
+			}		
+			vTaskDelay(10000 / portTICK_PERIOD_MS);
+			
 						
 			if(is_connected)
 			{
-				
-				
-				//ble_mesh_send_sensor_set_message(ESP_BLE_MESH_MODEL_OP_SENSOR_CADENCE_SET, id);
-				//vTaskDelay(5000 / portTICK_PERIOD_MS);
-				
-				//send_sensor_message()	
-				ESP_LOGI("__NEW_IMPLEMENTATION__", "sending message to server with uuid %d and waiting 10s", id);
-				ble_mesh_send_sensor_message(ESP_BLE_MESH_MODEL_OP_SENSOR_GET, id);			
-				vTaskDelay(10000 / portTICK_PERIOD_MS);
+				//publish connected state TRUE
+				ESP_LOGI("from server", "Server ID: %d. CONNECTED: TRUE", id);
+				esp_mqtt_client_publish(client, or_things[or_thing_idx].topic_connection, "true", 0, 1, 0);														
 				
 				//client_publish_temperature()
 				ESP_LOGI("from server", "Server ID: %d. TEMPERATURE DATA: %.2f C", id, nodes[node_idx].temp_state);
 		        char str_temperature[10];
 		        sprintf(str_temperature, "%f", nodes[node_idx].temp_state);
-		        //esp_mqtt_client_publish(client, or_things[or_thing_idx].topic_temp_val, str_temperature, 0, 1, 0);
+		        esp_mqtt_client_publish(client, or_things[or_thing_idx].topic_temp_val, str_temperature, 0, 1, 0);
 				
 				
 				//client_publish_moisture()
 				ESP_LOGI("from server", "Server ID: %d. MOISTURE DATA: %.2f [perc]", id, nodes[node_idx].moisture_state);
-				
+		        char str_moisture[10];
+		        sprintf(str_moisture, "%f", nodes[node_idx].moisture_state);
+		        esp_mqtt_client_publish(client, or_things[or_thing_idx].topic_mois_val, str_moisture, 0, 1, 0);				
 				
 				//client_publish_battery()
 				ESP_LOGI("from server", "Server ID: %d. BATTERY DATA: %d mV", id, (int) nodes[node_idx].battery_state);				
-			
+		        char str_battery[10];
+		        sprintf(str_battery, "%d", nodes[node_idx].battery_state);
+		        esp_mqtt_client_publish(client, or_things[or_thing_idx].topic_battery_val, str_battery, 0, 1, 0);
+		        
+		        //log sample()
+				esp_mqtt_client_publish(client, or_things[or_thing_idx].topic_log, "{\"Text\":\"OK\"}", 0, 1, 0);						
 				
+			} 
+			else 
+			{
+				//publish connected state False
+				ESP_LOGI("from server", "Server ID: %d. CONNECTED: FALSE", id);
+				esp_mqtt_client_publish(client, or_things[or_thing_idx].topic_connection, "false", 0, 1, 0);						
 			}
 			
-			
-			vTaskDelay(1000 / portTICK_PERIOD_MS);
-			
-		} 
+		}
+		
+		// sampling frequency delay
+		ESP_LOGI("Executing Delay", "Seconds: %d", frequency);
+		vTaskDelay((frequency * 1000) / portTICK_PERIOD_MS);	
+	
  	      
 	}  
 }
