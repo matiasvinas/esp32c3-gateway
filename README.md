@@ -18,7 +18,7 @@ Cada dispositivo sensor cuenta con un ID que lo distingue del resto de los dispo
 
 ### MQTT
 
-El dispositivo gateway actua como MQTT Client e interactua con el MQTT Broker de OpenRemote. Se utiliza el puerto 1883 (No seguro).
+El dispositivo gateway actua como MQTT Client e interactua con el MQTT Broker de OpenRemote. Se utiliza el puerto 8883 (Conexión Segura).
 
 ## Identificación de los dispositivos sensores y asignación de los tópicos correspondientes
 
