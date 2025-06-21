@@ -81,6 +81,8 @@
 #include "esp_tls.h"
 #include "esp_ota_ops.h"
 #include <sys/param.h>
+
+#include "driver/gpio.h"
 //static const char *TAG = "mqtt_example";
 ///MQTT Includes///
 
@@ -321,10 +323,8 @@ static esp_err_t prov_complete(uint16_t node_index, const esp_ble_mesh_octet16_t
 {
     esp_ble_mesh_client_common_param_t common = {0};
     esp_ble_mesh_cfg_client_get_state_t get = {0};
-    /*mycode*/
     esp_ble_mesh_node_info_t *node = NULL;
-    //esp_ble_mesh_node_t *node = NULL;
-    /*mycode*/
+
     char name[11] = {'\0'};
     esp_err_t err = ESP_OK;
 
@@ -353,13 +353,6 @@ static esp_err_t prov_complete(uint16_t node_index, const esp_ble_mesh_octet16_t
         return ESP_FAIL;
     }
 
-/*
-    node = esp_ble_mesh_provisioner_get_node_with_addr(primary_addr);
-    if (node == NULL) {
-        ESP_LOGE(TAG, "Failed to get node 0x%04x info", primary_addr);
-        return ESP_FAIL;
-    }
-*/
     example_ble_mesh_set_msg_common(&common, node, config_client.model, ESP_BLE_MESH_MODEL_OP_COMPOSITION_DATA_GET);
     get.comp_data_get.page = COMP_DATA_PAGE_0;
     err = esp_ble_mesh_config_client_get_state(&common, &get);
@@ -522,7 +515,6 @@ static void example_ble_mesh_config_client_cb(esp_ble_mesh_cfg_client_cb_event_t
     esp_err_t err = ESP_OK;
     uint16_t addr;
     
-    //opcode = param->params->opcode;
     addr = param->params->ctx.addr;
 	
     ESP_LOGI(TAG, "Config client, event %u, addr 0x%04x, opcode 0x%04" PRIx32,
@@ -539,13 +531,6 @@ static void example_ble_mesh_config_client_cb(esp_ble_mesh_cfg_client_cb_event_t
         return;
     }
 
-/*    
-    node = esp_ble_mesh_provisioner_get_node_with_addr(param->params->ctx.addr);
-    if (!node) {
-        ESP_LOGE(TAG, "Node 0x%04x not exists", param->params->ctx.addr);
-        return;
-    }
-*/
     switch (event) {
     case ESP_BLE_MESH_CFG_CLIENT_GET_STATE_EVT:
         if (param->params->opcode == ESP_BLE_MESH_MODEL_OP_COMPOSITION_DATA_GET) {
@@ -834,13 +819,6 @@ static void example_ble_mesh_sensor_client_cb(esp_ble_mesh_sensor_client_cb_even
         return;
     }
 
-	/*    
-    node = esp_ble_mesh_provisioner_get_node_with_addr(param->params->ctx.addr);
-    if (!node) {
-        ESP_LOGE(TAG, "Node 0x%04x not exists", param->params->ctx.addr);
-        return;
-    }
-	*/
     switch (event) {
     case ESP_BLE_MESH_SENSOR_CLIENT_GET_STATE_EVT:
         switch (param->params->opcode) {
@@ -891,7 +869,6 @@ static void example_ble_mesh_sensor_client_cb(esp_ble_mesh_sensor_client_cb_even
                 uint8_t *data = param->status_cb.sensor_status.marshalled_sensor_data->data;
                 
                 /*PROCESS TEMPERATURE DATA */
-                /*Convert temp Hexa data to float*/
                 uint8_t MSB = data[0x03];
                 uint8_t LSB = data[0x02];
                 uint16_t combined = MSB << 8 | LSB;
@@ -903,54 +880,23 @@ static void example_ble_mesh_sensor_client_cb(esp_ble_mesh_sensor_client_cb_even
 					s_temp = s_temp * (-1);
 				}
                 
-                //ESP_LOGI("CONVERSION", "hexa temp value is: %x", combined);
-                //ESP_LOGI("CONVERSION", "raw temp value is: %d", combined);
-                //ESP_LOGI("CONVERSION", "temp value is: %f", s_temp);
-                
                 /*PROCESS MOISTURE DATA*/
                 uint8_t moisture_msb = data[0x08];
                 uint8_t moisture_lsb = data[0x07];
                 uint16_t moisture_combined = moisture_msb << 8 | moisture_lsb;
                 float s_mois = ( (float) moisture_combined ) * 0.01;
-                //ESP_LOGI("CONVERSION", "hexa moisture value is: %x", moisture_combined);
-                //ESP_LOGI("CONVERSION", "raw moisture value is: %d", moisture_combined);
-                //ESP_LOGI("CONVERSION", "moisture value is: %f", s_mois);
 
  				/*PROCESS BATTERY LEVEL*/
                 uint8_t battery_msb = data[0x0C];
                 uint8_t battery_lsb = data[0x0B];
                 uint16_t s_batt = battery_msb << 8 | battery_lsb;
 
-                //ESP_LOGI("CONVERSION", "hexa battery value is: %x", s_batt);
-                //ESP_LOGI("CONVERSION", "battery value is: %d", s_batt);
                                 
                 node->temp_state = s_temp;
                 node->moisture_state = s_mois;
                 node->battery_state = s_batt;
                 
-                //ESP_LOG_BUFFER_HEX("Sensor Data temp_state:", data + 0x02, 1);
-                //ESP_LOG_BUFFER_HEX("Sensor Data hum_state", data + 0x05, 1);
-/*                
-                uint16_t length = 0;
-                for (; length < param->status_cb.sensor_status.marshalled_sensor_data->len; ) {
-                    uint8_t fmt = ESP_BLE_MESH_GET_SENSOR_DATA_FORMAT(data);
-                    uint8_t data_len = ESP_BLE_MESH_GET_SENSOR_DATA_LENGTH(data, fmt);
-                    uint16_t prop_id = ESP_BLE_MESH_GET_SENSOR_DATA_PROPERTY_ID(data, fmt);
-                    uint8_t mpid_len = (fmt == ESP_BLE_MESH_SENSOR_DATA_FORMAT_A ?
-                                        ESP_BLE_MESH_SENSOR_DATA_FORMAT_A_MPID_LEN : ESP_BLE_MESH_SENSOR_DATA_FORMAT_B_MPID_LEN);
-                    ESP_LOGI(TAG, "Format %s, length 0x%02x, Sensor Property ID 0x%04x",
-                        fmt == ESP_BLE_MESH_SENSOR_DATA_FORMAT_A ? "A" : "B", data_len, prop_id);
-                    if (data_len != ESP_BLE_MESH_SENSOR_DATA_ZERO_LEN) {
-                        ESP_LOG_BUFFER_HEX("Sensor Data", data + mpid_len, data_len + 1);
-                        node->temp_state = data[mpid_len];
-                        length += mpid_len + data_len + 1;
-                        data += mpid_len + data_len + 1;
-                    } else {
-                        length += mpid_len;
-                        data += mpid_len;
-                    }
-                }
-*/
+
             }
 
             break;
@@ -1101,8 +1047,14 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 		}
 
         if (strcmp(topic_event_str, topic_irrigation_str) == 0){
-			irrigation_activated  = atoi(event->data);
+			char data_str[6];
+			char true_str[] = "true";
+			int irrigation_activated = 2;
+			sprintf(data_str, "%s", event->data);
+			data_str[event->data_len] = '\0';
+			strcmp(data_str, true_str) == 0 ? (irrigation_activated = 1) : (irrigation_activated = 0);			
 			ESP_LOGI(TAG, "Irrigation System: %d ", irrigation_activated);
+			gpio_set_level(GPIO_NUM_4,irrigation_activated);
 		}		
         
         break;
@@ -1134,6 +1086,17 @@ const esp_mqtt_client_config_t mqtt_cfg = {
 	    .credentials.authentication.password = "QZxFVgZmQzdh0Nh8kann3TjIZfQ5CqfC",
 	    .credentials.username = "master:matias"
 	};
+	
+static void irrigator_init(void)
+{
+    ESP_LOGI(TAG, "Configuring irrigator GPIO");
+    gpio_reset_pin(GPIO_NUM_4);
+    /* Set the GPIO as a push/pull output */
+    gpio_set_direction(GPIO_NUM_4, GPIO_MODE_OUTPUT);
+    
+    gpio_set_level(GPIO_NUM_4, 0);
+}
+
 
 void app_main(void)
 {
@@ -1147,6 +1110,8 @@ void app_main(void)
         err = nvs_flash_init();
     }
     ESP_ERROR_CHECK(err);
+
+	irrigator_init();
 
     err = bluetooth_init();
     if (err != ESP_OK) {
