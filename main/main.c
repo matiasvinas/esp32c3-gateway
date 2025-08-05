@@ -22,6 +22,8 @@
 #include "esp_ble_mesh_config_model_api.h"
 #include "esp_ble_mesh_sensor_model_api.h"
 
+#include "esp_ble_mesh_local_data_operation_api.h"
+
 #include "ble_mesh_example_init.h"
 
 #include <stdint.h>
@@ -366,7 +368,7 @@ static esp_err_t prov_complete(uint16_t node_index, const esp_ble_mesh_octet16_t
         return ESP_FAIL;
     }
 
-    return ESP_OK;
+	return ESP_OK;
 }
 
 static void recv_unprov_adv_pkt(uint8_t dev_uuid[ESP_BLE_MESH_OCTET16_LEN], uint8_t addr[BD_ADDR_LEN],
@@ -432,8 +434,29 @@ static void example_ble_mesh_provisioning_cb(esp_ble_mesh_prov_cb_event_t event,
                       param->provisioner_prov_complete.unicast_addr, param->provisioner_prov_complete.element_num,
                       param->provisioner_prov_complete.netkey_idx);
         uint8_t idxx = param->provisioner_prov_complete.device_uuid[2];
-        ESP_LOGI(TAG_PROV, "ESP_BLE_MESH_PROV_COMPLETE_EVT SENDING GET MESS ID: %d", idxx);
-        ble_mesh_send_sensor_message(ESP_BLE_MESH_MODEL_OP_SENSOR_GET, idxx);
+        //ESP_LOGI(TAG_PROV, "ESP_BLE_MESH_PROV_COMPLETE_EVT SENDING GET MESS ID: %d", idxx);
+        //ble_mesh_send_sensor_message(ESP_BLE_MESH_MODEL_OP_SENSOR_GET, idxx);
+        
+        ESP_LOGI(TAG_PROV, "ADDING TO SUB LIST");
+/*        
+		esp_ble_mesh_client_common_param_t common = {0};
+		esp_ble_mesh_cfg_client_set_state_t set_state = {0};
+    
+		common.opcode = ESP_BLE_MESH_MODEL_OP_MODEL_SUB_ADD;
+		common.model = config_client.model;
+		common.ctx.net_idx = prov_key.net_idx;
+		common.ctx.app_idx = prov_key.app_key;
+		common.ctx.addr = elements[0].element_addr;
+
+		set_state.model_sub_add.element_addr = elements[0].element_addr;
+		set_state.model_sub_add.sub_addr = param->provisioner_prov_complete.unicast_addr;
+		set_state.model_sub_add.model_id = config_client.model->vnd.model_id;
+		set_state.model_sub_add.company_id = config_client.model->vnd.company_id;
+
+		esp_ble_mesh_config_client_set_state(&common, &set_state);
+*/
+//		esp_ble_mesh_model_subscribe_group_addr(elements[0].element_addr, config_client.model->vnd.company_id, config_client.model->vnd.model_id, param->provisioner_prov_complete.unicast_addr);
+        ESP_LOGI(TAG_PROV, "ADDING TO SUB LIST - FINISHED");
         break;
     case ESP_BLE_MESH_PROVISIONER_ADD_UNPROV_DEV_COMP_EVT:
         ESP_LOGI(TAG_PROV, "ESP_BLE_MESH_PROVISIONER_ADD_UNPROV_DEV_COMP_EVT, err_code %d", param->provisioner_add_unprov_dev_comp.err_code);
@@ -950,6 +973,10 @@ static void example_ble_mesh_sensor_client_cb(esp_ble_mesh_sensor_client_cb_even
         }
         break;
     case ESP_BLE_MESH_SENSOR_CLIENT_PUBLISH_EVT:
+         ESP_LOGI(TAG_BLE_CLIENT, "CLIENT PUBLISH EVENT");
+         ESP_LOG_BUFFER_HEX("Sensor Data", param->status_cb.sensor_status.marshalled_sensor_data->data,
+         param->status_cb.sensor_status.marshalled_sensor_data->len);
+
         break;
     case ESP_BLE_MESH_SENSOR_CLIENT_TIMEOUT_EVT:
         example_ble_mesh_sensor_timeout(param->params->opcode);
@@ -1146,10 +1173,9 @@ void app_main(void)
 	/* The last argument may be used to pass data to the event handler */
     esp_mqtt_client_register_event(client, ESP_EVENT_ANY_ID, mqtt_event_handler, NULL);
     esp_mqtt_client_start(client);
-	
+    	
 	while(1)
 	{
-
 	 	for(int or_thing_idx = 0; or_thing_idx < ARRAY_SIZE(or_things); or_thing_idx++)
 	 	{
 			//check if device is connected to the mesh()
@@ -1177,10 +1203,6 @@ void app_main(void)
 				is_connected = false;
 			}		
 			vTaskDelay(15000 / portTICK_PERIOD_MS);
-			
-			ble_mesh_send_sensor_message(ESP_BLE_MESH_MODEL_OP_SENSOR_GET, id);
-			vTaskDelay(2000 / portTICK_PERIOD_MS);
-			ble_mesh_send_sensor_message(ESP_BLE_MESH_MODEL_OP_SENSOR_GET, id);
 						
 			if(is_connected && (is_timeout != true) )
 			{
@@ -1220,8 +1242,6 @@ void app_main(void)
 		
 		//Delay attached to frequency topic
 		ESP_LOGI(TAG_POOL, "Wait %d seconds", frequency);
-		vTaskDelay((frequency * 1000) / portTICK_PERIOD_MS);	
-	
- 	      
+		vTaskDelay((frequency * 1000) / portTICK_PERIOD_MS);	 	      
 	}  
 }
