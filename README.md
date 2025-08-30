@@ -53,65 +53,65 @@ idf.py menuconfig
     1. Descargar el certificado SSL de la plataforma web.
     2. Obtener y descargar la cadena raíz de certificados de la Autoridad Certificante.
     3. Crear un archivo de extensión pem con toda la cadena de certificados.
-    4. agregar el archivo pem dentro de la carpeta main bajo el nombre `or_fiuba_tpp.pem`.
+    4. Agregar el archivo pem dentro de la carpeta main bajo el nombre `or_fiuba_tpp.pem`.
 
 3. Configurar las credenciales del Cliente MQTT.
-    1. Obtener el username y la contraseña del Service User creado en anteriormente. 
-    2. Configurar la estrutura de datos `mqtts_cfg` en base a la documentacion oficial [MQTT Broker Open Remote](https://docs.openremote.io/docs/user-guide/manager-apis#mqtt-api-mqtt-broker)
+    1. Obtener el username y la contraseña del *service user* creado en anteriormente. 
+    2. Configurar la estrutura de datos `mqtts_cfg`. Para mayor información consultar la documentación oficial [MQTT Broker Open Remote](https://docs.openremote.io/docs/user-guide/manager-apis#mqtt-api-mqtt-broker).
 
-    ```
-    const esp_mqtt_client_config_t mqtts_cfg = {
-            .broker.address.transport = MQTT_TRANSPORT_OVER_SSL,
-            .broker.address.port = 8883,
-            .broker.address.path = "{hostname}",
-            .broker.address.hostname = "{hostname}",
-            .broker.verification.skip_cert_common_name_check = false,
-            .broker.verification.certificate = (const char *)or_fiuba_tpp_pem_start,
-            .credentials.client_id = "{clientid}",
-            .credentials.authentication.password = "{secret}",
-            .credentials.username = "{realm}:{username}"
-        };
-    ```
+        ```
+        const esp_mqtt_client_config_t mqtts_cfg = {
+                .broker.address.transport = MQTT_TRANSPORT_OVER_SSL,
+                .broker.address.port = 8883,
+                .broker.address.path = "{hostname}",
+                .broker.address.hostname = "{hostname}",
+                .broker.verification.skip_cert_common_name_check = false,
+                .broker.verification.certificate = (const char *)or_fiuba_tpp_pem_start,
+                .credentials.client_id = "{clientid}",
+                .credentials.authentication.password = "{secret}",
+                .credentials.username = "{realm}:{username}"
+            };
+        ```
 
-4. Agregar los tópicos relacionados a los nodos sensores.
+4. Agregar los tópicos correspondientes de los nodos sensores.
     1. Agregar los tópicos de los sensores a la estructura de datos `or_things[]`. El cliente_ Para mayor información consultar la documentacion oficial [MQTT Broker Open Remote](https://docs.openremote.io/docs/user-guide/manager-apis#mqtt-api-mqtt-broker).
-    ```
-    static openremote_thing_t or_things[3] = {
-        [0] = {
-            .id = 0x01,
-            .topic_temp_val = "master/{clientid}/writeattributevalue/temperatura/{sensor1token}",
-            .topic_mois_val = "master/{clientid}/writeattributevalue/humedad_suelo/{sensor1token}",
-            .topic_battery_val = "master/{clientid}/writeattributevalue/bateria/{sensor1token}",
-            .topic_connection = "master/{clientid}/writeattributevalue/nodo_sensor_1_conectado/{gatewaytoken}",
-        },
-        [1] = {
-            .id = 0x02,
-            .topic_temp_val = "master/{clientid}/writeattributevalue/temperatura/{sensor2token}",
-            .topic_mois_val = "master/{clientid}/writeattributevalue/humedad_suelo/{sensor2token}",
-            .topic_battery_val = "master/{clientid}/writeattributevalue/bateria/{sensor2token}",
-            .topic_connection = "master/{clientid}/writeattributevalue/nodo_sensor_2_conectado/{gatewaytoken}",
-        },
-        [2] = {
-            .id = 0x03,
-            .topic_temp_val = "master/{clientid}/writeattributevalue/temperatura/{sensor3token}",
-            .topic_mois_val = "master/{clientid}/writeattributevalue/humedad_suelo/{sensor3token}",
-            .topic_battery_val = "master/{clientid}/writeattributevalue/bateria/{sensor3token}",
-            .topic_connection = "master/{clientid}/writeattributevalue/nodo_sensor_3_conectado/{gatewaytoken}",	
-        }	
-    };
-    ```
-    1. Agregar los tópicos de los actuadores a `topic_frequency_str[]` y `topic_irrigation_str[]`
-    ```
-    //MQTT Topics handled by Gateway
-    const char topic_frequency_str[] = "master/{clientid}/attributevalue/frecuencia/{gatewaytoken}";
-    const char topic_irrigation_str[] = "master/{clientid}/attributevalue/riego_activado/{gatewaytoken}";
-    ```
+        ```
+        static openremote_thing_t or_things[3] = {
+            [0] = {
+                .id = 0x01,
+                .topic_temp_val = "master/{clientid}/writeattributevalue/temperatura/{sensor1token}",
+                .topic_mois_val = "master/{clientid}/writeattributevalue/humedad_suelo/{sensor1token}",
+                .topic_battery_val = "master/{clientid}/writeattributevalue/bateria/{sensor1token}",
+                .topic_connection = "master/{clientid}/writeattributevalue/nodo_sensor_1_conectado/{gatewaytoken}",
+            },
+            [1] = {
+                .id = 0x02,
+                .topic_temp_val = "master/{clientid}/writeattributevalue/temperatura/{sensor2token}",
+                .topic_mois_val = "master/{clientid}/writeattributevalue/humedad_suelo/{sensor2token}",
+                .topic_battery_val = "master/{clientid}/writeattributevalue/bateria/{sensor2token}",
+                .topic_connection = "master/{clientid}/writeattributevalue/nodo_sensor_2_conectado/{gatewaytoken}",
+            },
+            [2] = {
+                .id = 0x03,
+                .topic_temp_val = "master/{clientid}/writeattributevalue/temperatura/{sensor3token}",
+                .topic_mois_val = "master/{clientid}/writeattributevalue/humedad_suelo/{sensor3token}",
+                .topic_battery_val = "master/{clientid}/writeattributevalue/bateria/{sensor3token}",
+                .topic_connection = "master/{clientid}/writeattributevalue/nodo_sensor_3_conectado/{gatewaytoken}",	
+            }	
+        };
+        ```
+    2. Agregar los tópicos de los actuadores a `topic_frequency_str[]` y `topic_irrigation_str[]`.
+        ```
+        //MQTT Topics handled by Gateway
+        const char topic_frequency_str[] = "master/{clientid}/attributevalue/frecuencia/{gatewaytoken}";
+        const char topic_irrigation_str[] = "master/{clientid}/attributevalue/riego_activado/{gatewaytoken}";
+        ```
 
 ## Configuración BLE Mesh para la comunación entre el nodo gateway y los nodos sensores
 1. Elegir un ID de 2 bytes para identificar todos los nodos que deben ser aprovisionados por el nodo gateway. Este ID debe ser también configurado en el firmware de los nodos sensores ([esp32c3-sensor](https://github.com/matiasvinas/esp32c3-sensor))
-```
-uint8_t match[2] = { 0x32, 0x10 };
-```
+    ```
+    uint8_t match[2] = { 0x32, 0x10 };
+    ```
 2. definir un ID único para cada uno de los sensores en la estructura de datos `or_things[]`. Estos ID deben ser configurados en los nodos sensores, respectivamente. De esta manera, se logra vincular los tópicos con el dispositivo nodo sensor correspondiente.
 
     ```
