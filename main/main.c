@@ -99,7 +99,7 @@
 #define PROV_OWN_ADDR       0x0001
 
 #define MSG_SEND_TTL        3
-#define MSG_TIMEOUT         10000
+#define MSG_TIMEOUT         4000
 #define MSG_ROLE            ROLE_PROVISIONER
 
 #define COMP_DATA_PAGE_0    0x00
@@ -1136,7 +1136,8 @@ static void irrigator_init(void)
 void app_main(void)
 {
     esp_err_t err = ESP_OK;
-
+	float voltage;
+	
     ESP_LOGI(TAG, "Initializing...");
 
     err = nvs_flash_init();
@@ -1202,7 +1203,7 @@ void app_main(void)
 			{
 				is_connected = false;
 			}		
-			vTaskDelay(15000 / portTICK_PERIOD_MS);
+			vTaskDelay(5000 / portTICK_PERIOD_MS);
 						
 			if(is_connected && (is_timeout != true) )
 			{
@@ -1224,9 +1225,13 @@ void app_main(void)
 		        esp_mqtt_client_publish(client, or_things[or_thing_idx].topic_mois_val, str_moisture, 0, 1, 0);				
 				
 				//Publish Battery Level
-				ESP_LOGI(TAG_PUBLISH, "ID %d. Battery: %d mV", id, (int) nodes[node_idx].battery_state);				
+				ESP_LOGI(TAG_PUBLISH, "ID %d. Battery: %d mV", id, (int) nodes[node_idx].battery_state);
+				voltage = (float) nodes[node_idx].battery_state;
+				voltage = voltage / 1000;
+				voltage = voltage * 3.2;
+				ESP_LOGI(TAG_PUBLISH, "ID %d. Battery: %.3f V", id, voltage);
 		        char str_battery[10];
-		        sprintf(str_battery, "%d", nodes[node_idx].battery_state);
+		        sprintf(str_battery, "%.3f", voltage);
 		        esp_mqtt_client_publish(client, or_things[or_thing_idx].topic_battery_val, str_battery, 0, 1, 0);			
 			} 
 			else 
