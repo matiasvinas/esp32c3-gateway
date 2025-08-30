@@ -1,29 +1,47 @@
 # Sistema de monitoreo y gestión remota de invernaderos
 Proyecto realizado dentro del marco del Trabajo Profesional de Ingeniería Eletrónica de la Facultad de Ingeniería de la Universidad de Buenos Aires
 
-## Introducción
+## Contenido
+
+Este repositorio contiene la descripción completa del sistema, el firmware del nodo gateway y su configuración. Para ver la descripción del nodo sensor, referirse a [esp32c3-sensor](https://github.com/matiasvinas/esp32c3-sensor).
+
+## Índice
+
+- [Introducción al sistema de monitoreo y gestión](#introducción-al-sistema-de-monitoreo-y-gestión)
+- [Nodo gateway](#nodo-gateway)
+  - [Características](#características)
+  - [Configuración Wi-Fi del nodo gateway](#configuración-wi-fi-del-nodo-gateway)
+  - [Configuración para la comunicación MQTT sobre SSL](#configuración-para-la-comunicación-mqtt-sobre-ssl-entre-el-nodo-gateway-y-la-plataforma-web)
+  - [Configuración para la comunicación BLE Mesh](#configuración-para-la-comunicación-ble-mesh-entre-el-nodo-gateway-y-los-nodos-sensores)
+  - [Conexión del control del actuador a la placa de desarrollo](#conexión-del-control-del-actuador-a-la-placa-de-desarrollo)
+- [Puesta en marcha del sistema de sensores](#puesta-en-marcha-del-sistema-de-sensores)
+- [Enlaces útiles](#enlaces-útiles)
+
+## Introducción al sistema de monitoreo y gestión
 El sistema de monitoreo y gestión remota de invernadores consta de las siguientes partes:
-- **3 nodo sensores** ([esp32c3-sensor](https://github.com/matiasvinas/esp32c3-sensor)): dispositivos responsables de medir temperatura, humedad del suelo, tensión de batería del sensor y envíar los datos a través de BLE Mesh al nodo gateway. 
-- **Nodo gateway**: dispositivo responsable de controlar actuadores y envíar datos de los sensores a la plataforma web a través del protocolo MQTT.  
+- **3 nodos sensores**: dispositivos responsables de medir temperatura, humedad del suelo, tensión de batería del sensor y envíar los datos a través de BLE Mesh al nodo gateway. El firmware del nodo sensor se encuentra en [esp32c3-sensor](https://github.com/matiasvinas/esp32c3-sensor).
+- **Nodo *gateway***: dispositivo responsable de controlar actuadores y envíar datos de los sensores a la plataforma web a través del protocolo MQTT.  
 - **Plataforma web**: inplementada en AWS en base al proyecto de código abierto [Open Remote](https://openremote.io/), con la finalidad de controlar los nodos del sistema por parte del usuario.
 
+Los nodos de la malla bluetooth están dispuestos como una red estrella donde el nodo gateway es el nodo central y el único que intercambia datos con la plataforma web.
 
-## Características del nodo gateway
+![Diagrama del dispositivo Sensor](images/diagrama-solucion-propuesta.png)
+
+# Nodo *gateway*
+
+## Características
 - Microcontrolador: ESP32-C3-WROOM-02 de la empresa [Espressif](https://www.espressif.com/).
 - Framework: ESP-IDF v5.2.2.
+- Memoria Flash: 4MB.
+- *Partition table* implementada:
 
+    |Name|Type|Subtype|Offset|Size|
+    |----|----|-------|------|----|
+    |nvs |data|nvs    |0x9000|24K |
+    |phy_init|data|phy|0xf000|4K |
+    |factory|app|factory|0x10000|4M|
 
-## Custom partition table utilizada
-
-Se creó una "custom partition table" y se modificó el el tamaño de memoria flash de 2MB a 4MB.
-
-|Name|Type|Subtype|Offset|Size|
-|----|----|-------|------|----|
-|nvs |data|nvs    |0x9000|24K |
-|phy_init|data|phy|0xf000|4K |
-|factory|app|factory|0x10000|4M|
-
-## Configuración Wi-Fi del nodo gateway
+## Configuración Wi-Fi del nodo *gateway*
 
 1. Abrir el directorio del proyecto y correr el siguiente comando:
 ```
@@ -34,16 +52,17 @@ idf.py menuconfig
 4. Guardar cambios y salir.
 
 
-## Configuración para la comunicación MQTT sobre SSL entre el nodo gateway y la plataforma Web
+## Configuración para la comunicación MQTT sobre SSL entre el nodo *gateway* y la plataforma web
 
 0. Requisitos previos:
 
-    - Plataforma web Open Remote hosteada en dominio y certificado SSL válido.
-    - *Asset* nodo gateway creado
-    - *Assets* de los nodos sensores
+    - Plataforma de Open Remote hosteada en dominio
+    - Certificado SSL válido del dominio.
+    - Creación del *asset* nodo gateway en la plataforma.
+    - Creación de los *assets* de los nodos sensores en la plataforma.
 
 1. Crear un *service user* en la plataforma de Open Remote para habilitar el broker MQTT. 
-    1. En la plataforma web, ir a la sección de *Users* y seleccionar *"Add service user"*
+    1. En la plataforma Open Remote, ir a la sección de *Users* y seleccionar *"Add service user"*
     2. Ingresar un *username*.
     3. En el campo *realm role*, seleccionar "*admin user*".
     4. Vincular el *service user* al *asset* nodo gateway.
@@ -53,11 +72,11 @@ idf.py menuconfig
     1. Descargar el certificado SSL de la plataforma web.
     2. Obtener y descargar la cadena raíz de certificados de la Autoridad Certificante.
     3. Crear un archivo de extensión pem con toda la cadena de certificados.
-    4. Agregar el archivo pem dentro de la carpeta main bajo el nombre `or_fiuba_tpp.pem`.
+    4. Agregar el archivo pem dentro de la carpeta *main* bajo el nombre `or_fiuba_tpp.pem`.
 
 3. Configurar las credenciales del Cliente MQTT.
-    1. Obtener el username y la contraseña del *service user* creado en anteriormente. 
-    2. Configurar la estrutura de datos `mqtts_cfg`. Para mayor información consultar la documentación oficial [MQTT Broker Open Remote](https://docs.openremote.io/docs/user-guide/manager-apis#mqtt-api-mqtt-broker).
+    1. Obtener el *username* y la contraseña del *service user* creado en anteriormente. 
+    2. Configurar la estructura de datos `mqtts_cfg` del archivo `main/main.c`. Para mayor información consultar la documentación oficial [MQTT Broker Open Remote](https://docs.openremote.io/docs/user-guide/manager-apis#mqtt-api-mqtt-broker).
 
         ```
         const esp_mqtt_client_config_t mqtts_cfg = {
@@ -74,7 +93,7 @@ idf.py menuconfig
         ```
 
 4. Agregar los tópicos correspondientes de los nodos sensores.
-    1. Agregar los tópicos de los sensores a la estructura de datos `or_things[]`. El cliente_ Para mayor información consultar la documentacion oficial [MQTT Broker Open Remote](https://docs.openremote.io/docs/user-guide/manager-apis#mqtt-api-mqtt-broker).
+    1. Agregar los tópicos de los sensores a la estructura de datos `or_things[]` del archivo `main/main.c`. Para mayor información consultar la documentacion oficial [MQTT Broker Open Remote](https://docs.openremote.io/docs/user-guide/manager-apis#mqtt-api-mqtt-broker).
         ```
         static openremote_thing_t or_things[3] = {
             [0] = {
@@ -100,15 +119,15 @@ idf.py menuconfig
             }	
         };
         ```
-    2. Agregar los tópicos de los actuadores a `topic_frequency_str[]` y `topic_irrigation_str[]`.
+    2. Agregar los tópicos de los actuadores a `topic_frequency_str[]` y `topic_irrigation_str[]` del archivo `main/main.c`.
         ```
         //MQTT Topics handled by Gateway
         const char topic_frequency_str[] = "master/{clientid}/attributevalue/frecuencia/{gatewaytoken}";
         const char topic_irrigation_str[] = "master/{clientid}/attributevalue/riego_activado/{gatewaytoken}";
         ```
 
-## Configuración BLE Mesh para la comunación entre el nodo gateway y los nodos sensores
-1. Elegir un ID de 2 bytes para identificar todos los nodos que deben ser aprovisionados por el nodo gateway. Este ID debe ser también configurado en el firmware de los nodos sensores ([esp32c3-sensor](https://github.com/matiasvinas/esp32c3-sensor))
+## Configuración para la comunicación BLE Mesh entre el nodo gateway y los nodos sensores
+1. Elegir un ID de 2 bytes para identificar todos los nodos que deben ser aprovisionados por el nodo *gateway*. Este ID debe ser también configurado en el firmware de los nodos sensores ([esp32c3-sensor](https://github.com/matiasvinas/esp32c3-sensor))
     ```
     uint8_t match[2] = { 0x32, 0x10 };
     ```
@@ -130,9 +149,14 @@ idf.py menuconfig
         }	
     };
     ```
+## Conexión del control del actuador a la placa de desarrollo
+
+El dispositivo nodo gateway controla el actuador a través del pin GPIO4. El valor lógico del pin puede ser controlado desde la plataforma Open Remote.
+
+
 
 ## Puesta en marcha del sistema de sensores
-1. Encender el nodo gateway y verificar que se encuentre vinculado con el Broker MQTT desde el *Service User* de la plataforma web.
+1. Encender el nodo gateway y verificar que se encuentre vinculado con el *broker* MQTT desde el *service user* creado en la plataforma Open Remote.
 2. Encender cada uno de los nodos sensores de forma sencuencial y verificar que se encuentran conectados desde la plataforma web. 
 
 ## Enlaces útiles
