@@ -1,40 +1,139 @@
-# Sistema de monitoreo y gestión remota de invernaderos - Gateway
+# Sistema de monitoreo y gestión remota de invernaderos
 Proyecto realizado dentro del marco del Trabajo Profesional de Ingeniería Eletrónica de la Facultad de Ingeniería de la Universidad de Buenos Aires
 
-## Contenido 
-Este repositorio contiene el firmware del dispositivo del gateway del sistema.
+## Introducción
+El sistema de monitoreo y gestión remota de invernadores consta de las siguientes partes:
+- **3 nodo sensores** ([esp32c3-sensor](https://github.com/matiasvinas/esp32c3-sensor)): dispositivos responsables de medir temperatura, humedad del suelo, tensión de batería del sensor y envíar los datos a través de BLE Mesh al nodo gateway. 
+- **Nodo gateway**: dispositivo responsable de controlar actuadores y envíar datos de los sensores a la plataforma web a través del protocolo MQTT.  
+- **Plataforma web**: inplementada en AWS en base al proyecto de código abierto [Open Remote](https://openremote.io/), con la finalidad de controlar los nodos del sistema por parte del usuario.
 
-## Características del Hardware
-- Microcontrolador: ESP32-C3-WROOM-02 de la empresa [Espressif](https://www.espressif.com/)
-- Framework: ESP-IDF
 
-## Comunicación de Datos
+## Características del nodo gateway
+- Microcontrolador: ESP32-C3-WROOM-02 de la empresa [Espressif](https://www.espressif.com/).
+- Framework: ESP-IDF v5.2.2.
 
-### Bluetooth
 
-El dispositivo gateway usa Bluetooth 5.0 BLE Mesh para la comunicación con los dispositivos [esp32c3-sensor](https://github.com/matiasvinas/esp32c3-sensor). El dispositivo gateway actúa como provisionador de la red de los dispositivos sensores. Para que un dispositivo sensor pueda ser provisionado a la red deberá contener valores espefícos los primeros 16 bits del UUID.
+## Custom partition table utilizada
 
-Cada dispositivo sensor cuenta con un ID que lo distingue del resto de los dispositivos. Cada ID tiene asignado un TDA con los tópicos relacionados a sus variables.
-
-### MQTT
-
-El dispositivo gateway actua como MQTT Client e interactua con el MQTT Broker de OpenRemote. Se utiliza el puerto 8883 (Conexión Segura).
-
-## Identificación de los dispositivos sensores y asignación de los tópicos correspondientes
-
-El dispositivo gateway identifica primero si el dispositivo sensor "A" se encuentra dentro de la Red. En caso de ser cierto, obtiene los valores mediante Bluetooth y los envía al Broker MQTT. Luego realiza el mismo procedimiento con el resto de los dispositivo sensores. 
-
-<img src="images/main_flowchart.png" alt="Alt Text" width="300">
-
-## Notas
-- Para la conexión WIFI se utilizó la configuración de ejemplo del esp-idf framwork. Se la puede configurar en el archivo sdkconfig.
-- Se creó una "custom partition table" y se modificó el el tamaño de memoria flash de 2MB a 4MB.
+Se creó una "custom partition table" y se modificó el el tamaño de memoria flash de 2MB a 4MB.
 
 |Name|Type|Subtype|Offset|Size|
 |----|----|-------|------|----|
 |nvs |data|nvs    |0x9000|24K |
 |phy_init|data|phy|0xf000|4K |
 |factory|app|factory|0x10000|4M|
+
+## Configuración Wi-Fi del nodo gateway
+
+1. Abrir el directorio del proyecto y correr el siguiente comando:
+```
+idf.py menuconfig
+```
+2. Navegar a la sección de configuración Wi-Fi llamada `Example Connection Configuration`
+3. Completar los campos `WiFi SSID` con el nombre de la red y `WiFi Password` con la contraseña correspondiente.
+4. Guardar cambios y salir.
+
+
+## Configuración para la comunicación MQTT sobre SSL entre el nodo gateway y la plataforma Web
+
+0. Requisitos previos:
+
+    - Plataforma web Open Remote hosteada en dominio y certificado SSL válido.
+    - *Asset* nodo gateway creado
+    - *Assets* de los nodos sensores
+
+1. Crear un *service user* en la plataforma de Open Remote para habilitar el broker MQTT. 
+    1. En la plataforma web, ir a la sección de *Users* y seleccionar *"Add service user"*
+    2. Ingresar un *username*.
+    3. En el campo *realm role*, seleccionar "*admin user*".
+    4. Vincular el *service user* al *asset* nodo gateway.
+
+2. Agregar certificado pem 
+
+    1. Descargar el certificado SSL de la plataforma web.
+    2. Obtener y descargar la cadena raíz de certificados de la Autoridad Certificante.
+    3. Crear un archivo de extensión pem con toda la cadena de certificados.
+    4. agregar el archivo pem dentro de la carpeta main bajo el nombre `or_fiuba_tpp.pem`.
+
+3. Configurar las credenciales del Cliente MQTT.
+    1. Obtener el username y la contraseña del Service User creado en anteriormente. 
+    2. Configurar la estrutura de datos `mqtts_cfg` en base a la documentacion oficial [MQTT Broker Open Remote](https://docs.openremote.io/docs/user-guide/manager-apis#mqtt-api-mqtt-broker)
+
+    ```
+    const esp_mqtt_client_config_t mqtts_cfg = {
+            .broker.address.transport = MQTT_TRANSPORT_OVER_SSL,
+            .broker.address.port = 8883,
+            .broker.address.path = "{hostname}",
+            .broker.address.hostname = "{hostname}",
+            .broker.verification.skip_cert_common_name_check = false,
+            .broker.verification.certificate = (const char *)or_fiuba_tpp_pem_start,
+            .credentials.client_id = "{clientid}",
+            .credentials.authentication.password = "{secret}",
+            .credentials.username = "{realm}:{username}"
+        };
+    ```
+
+4. Agregar los tópicos relacionados a los nodos sensores.
+    1. Agregar los tópicos de los sensores a la estructura de datos `or_things[]`. El cliente_ Para mayor información consultar la documentacion oficial [MQTT Broker Open Remote](https://docs.openremote.io/docs/user-guide/manager-apis#mqtt-api-mqtt-broker).
+    ```
+    static openremote_thing_t or_things[3] = {
+        [0] = {
+            .id = 0x01,
+            .topic_temp_val = "master/{clientid}/writeattributevalue/temperatura/{sensor1token}",
+            .topic_mois_val = "master/{clientid}/writeattributevalue/humedad_suelo/{sensor1token}",
+            .topic_battery_val = "master/{clientid}/writeattributevalue/bateria/{sensor1token}",
+            .topic_connection = "master/{clientid}/writeattributevalue/nodo_sensor_1_conectado/{gatewaytoken}",
+        },
+        [1] = {
+            .id = 0x02,
+            .topic_temp_val = "master/{clientid}/writeattributevalue/temperatura/{sensor2token}",
+            .topic_mois_val = "master/{clientid}/writeattributevalue/humedad_suelo/{sensor2token}",
+            .topic_battery_val = "master/{clientid}/writeattributevalue/bateria/{sensor2token}",
+            .topic_connection = "master/{clientid}/writeattributevalue/nodo_sensor_2_conectado/{gatewaytoken}",
+        },
+        [2] = {
+            .id = 0x03,
+            .topic_temp_val = "master/{clientid}/writeattributevalue/temperatura/{sensor3token}",
+            .topic_mois_val = "master/{clientid}/writeattributevalue/humedad_suelo/{sensor3token}",
+            .topic_battery_val = "master/{clientid}/writeattributevalue/bateria/{sensor3token}",
+            .topic_connection = "master/{clientid}/writeattributevalue/nodo_sensor_3_conectado/{gatewaytoken}",	
+        }	
+    };
+    ```
+    1. Agregar los tópicos de los actuadores a `topic_frequency_str[]` y `topic_irrigation_str[]`
+    ```
+    //MQTT Topics handled by Gateway
+    const char topic_frequency_str[] = "master/{clientid}/attributevalue/frecuencia/{gatewaytoken}";
+    const char topic_irrigation_str[] = "master/{clientid}/attributevalue/riego_activado/{gatewaytoken}";
+    ```
+
+## Configuración BLE Mesh para la comunación entre el nodo gateway y los nodos sensores
+1. Elegir un ID de 2 bytes para identificar todos los nodos que deben ser aprovisionados por el nodo gateway. Este ID debe ser también configurado en el firmware de los nodos sensores ([esp32c3-sensor](https://github.com/matiasvinas/esp32c3-sensor))
+```
+uint8_t match[2] = { 0x32, 0x10 };
+```
+2. definir un ID único para cada uno de los sensores en la estructura de datos `or_things[]`. Estos ID deben ser configurados en los nodos sensores, respectivamente. De esta manera, se logra vincular los tópicos con el dispositivo nodo sensor correspondiente.
+
+    ```
+    static openremote_thing_t or_things[3] = {
+        [0] = {
+            .id = 0x01,
+            ...
+        },
+        [1] = {
+            .id = 0x02,
+            ...
+        },
+        [2] = {
+            .id = 0x03,
+            ...
+        }	
+    };
+    ```
+
+## Puesta en marcha del sistema de sensores
+1. Encender el nodo gateway y verificar que se encuentre vinculado con el Broker MQTT desde el *Service User* de la plataforma web.
+2. Encender cada uno de los nodos sensores de forma sencuencial y verificar que se encuentran conectados desde la plataforma web. 
 
 ## Enlaces útiles
 
