@@ -44,9 +44,9 @@ Los nodos de la malla bluetooth están dispuestos como una red estrella donde el
 ## Configuración Wi-Fi del nodo *gateway*
 
 1. Abrir el directorio del proyecto y correr el siguiente comando:
-```
-idf.py menuconfig
-```
+    ```
+    idf.py menuconfig
+    ```
 2. Navegar a la sección de configuración Wi-Fi llamada `Example Connection Configuration`
 3. Completar los campos `WiFi SSID` con el nombre de la red y `WiFi Password` con la contraseña correspondiente.
 4. Guardar cambios y salir.
@@ -71,8 +71,8 @@ idf.py menuconfig
 
     1. Descargar el certificado SSL de la plataforma web.
     2. Obtener y descargar la cadena raíz de certificados de la Autoridad Certificante.
-    3. Crear un archivo de extensión pem con toda la cadena de certificados.
-    4. Agregar el archivo pem dentro de la carpeta `/main` bajo el nombre `or_fiuba_tpp.pem`.
+    3. Crear un archivo de extensión ".pem" con toda la cadena de certificados.
+    4. Renombrar el archivo a `or_fiuba_tpp.pem` y guardarlo dentro de la carpeta `/main`.
 
 3. Configuración del cliente MQTT:
     1. Obtener el *username* y la contraseña del *service user* creado en anteriormente. 
@@ -148,19 +148,38 @@ idf.py menuconfig
         #define SENSOR_ID_NODE_2         0x02
         #define SENSOR_ID_NODE_3         0x03
         /* ID de la malla */
-        #define SENSOR_ID_MESH_0          0x32    
-        #define SENSOR_ID_MESH_1          0x10
+        #define SENSOR_ID_MESH_0         0x32    
+        #define SENSOR_ID_MESH_1         0x10
         ```
 ## Conexión del control del actuador a la placa de desarrollo
 
-El dispositivo nodo gateway controla el actuador a través del pin GPIO4. El valor lógico del pin puede ser controlado desde la plataforma Open Remote.
+El dispositivo nodo *gateway* controla el actuador a través del pin GPIO 04. El valor lógico del pin puede ser controlado desde la plataforma Open Remote.
 
 
 
 ## Puesta en marcha del sistema de sensores
-1. Encender el nodo gateway y verificar que se encuentre vinculado con el *broker* MQTT desde el *service user* creado en la plataforma Open Remote.
+1. Encender el nodo *gateway* y verificar que se encuentre vinculado con el *broker* MQTT desde el *service user* creado en la plataforma Open Remote.
 2. Encender cada uno de los nodos sensores de forma sencuencial y verificar que se encuentran conectados desde la plataforma web. 
 
 ## Enlaces útiles
 
+[esp32c3-sensor](https://github.com/matiasvinas/esp32c3-sensor)
+
+
 [ESP-BLE-MESH - Sensor Server Client Example](https://github.com/espressif/esp-idf/blob/master/examples/bluetooth/esp_ble_mesh/sensor_models/sensor_client/README.md)
+
+
+[ESP-BLE-MESH - Provisioner Example](https://github.com/espressif/esp-idf/blob/master/examples/bluetooth/esp_ble_mesh/provisioner/README.md)
+
+[ESP-BLE-MESH - Wi-Fi Coexistence Example](https://github.com/espressif/esp-idf/blob/master/examples/bluetooth/esp_ble_mesh/wifi_coexist/README.md)
+
+
+[ESP-MQTT SSL Sample Application](https://github.com/espressif/esp-idf/blob/master/examples/protocols/mqtt/ssl/README.md)
+
+
+[Open Remote - Documentation](https://docs.openremote.io/docs/introduction)
+
+
+[Open Remote - Broker MQTT](https://docs.openremote.io/docs/user-guide/manager-apis#mqtt-api-mqtt-broker)
+
+
