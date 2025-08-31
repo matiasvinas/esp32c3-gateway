@@ -30,7 +30,7 @@ Los nodos de la malla bluetooth están dispuestos como una red estrella donde el
 # Nodo *gateway*
 
 ## Características
-- Microcontrolador: ESP32-C3-WROOM-02 de la empresa [Espressif](https://www.espressif.com/).
+- Placa de desarrollo: ESP32-C3-WROOM-02 de la empresa [Espressif](https://www.espressif.com/).
 - Framework: ESP-IDF v5.2.2.
 - Memoria Flash: 4MB.
 - *Partition table* implementada:
@@ -56,25 +56,25 @@ idf.py menuconfig
 
 0. Requisitos previos:
 
-    - Plataforma de Open Remote hosteada en dominio
+    - Plataforma de Open Remote hosteada en dominio.
     - Certificado SSL válido del dominio.
     - Creación del *asset* nodo gateway en la plataforma.
     - Creación de los *assets* de los nodos sensores en la plataforma.
 
-1. Crear un *service user* en la plataforma de Open Remote para habilitar el broker MQTT. 
-    1. En la plataforma Open Remote, ir a la sección de *Users* y seleccionar *"Add service user"*
+1. Creación del *service user* y uso del *broker* MQTT: 
+    1. En la plataforma Open Remote, ir a la sección de *Users* y seleccionar *"Add service user"*.
     2. Ingresar un *username*.
     3. En el campo *realm role*, seleccionar "*admin user*".
     4. Vincular el *service user* al *asset* nodo gateway.
 
-2. Agregar certificado pem 
+2. Creación del certificado PEM:
 
     1. Descargar el certificado SSL de la plataforma web.
     2. Obtener y descargar la cadena raíz de certificados de la Autoridad Certificante.
     3. Crear un archivo de extensión pem con toda la cadena de certificados.
-    4. Agregar el archivo pem dentro de la carpeta *main* bajo el nombre `or_fiuba_tpp.pem`.
+    4. Agregar el archivo pem dentro de la carpeta `/main` bajo el nombre `or_fiuba_tpp.pem`.
 
-3. Configurar las credenciales del Cliente MQTT.
+3. Configuración del cliente MQTT:
     1. Obtener el *username* y la contraseña del *service user* creado en anteriormente. 
     2. Configurar la estructura de datos `mqtts_cfg` del archivo `main/main.c`. Para mayor información consultar la documentación oficial [MQTT Broker Open Remote](https://docs.openremote.io/docs/user-guide/manager-apis#mqtt-api-mqtt-broker).
 
@@ -92,7 +92,7 @@ idf.py menuconfig
             };
         ```
 
-4. Agregar los tópicos correspondientes de los nodos sensores.
+4. Configuración de los tópicos de los nodos:
     1. Agregar los tópicos de los sensores a la estructura de datos `or_things[]` del archivo `main/main.c`. Para mayor información consultar la documentacion oficial [MQTT Broker Open Remote](https://docs.openremote.io/docs/user-guide/manager-apis#mqtt-api-mqtt-broker).
         ```
         static openremote_thing_t or_things[3] = {
@@ -126,29 +126,31 @@ idf.py menuconfig
         const char topic_irrigation_str[] = "master/{clientid}/attributevalue/riego_activado/{gatewaytoken}";
         ```
 
-## Configuración para la comunicación BLE Mesh entre el nodo gateway y los nodos sensores
-1. Elegir un ID de 2 bytes para identificar todos los nodos que deben ser aprovisionados por el nodo *gateway*. Este ID debe ser también configurado en el firmware de los nodos sensores ([esp32c3-sensor](https://github.com/matiasvinas/esp32c3-sensor))
-    ```
-    uint8_t match[2] = { 0x32, 0x10 };
-    ```
-2. definir un ID único para cada uno de los sensores en la estructura de datos `or_things[]`. Estos ID deben ser configurados en los nodos sensores, respectivamente. De esta manera, se logra vincular los tópicos con el dispositivo nodo sensor correspondiente.
+## Configuración para la comunicación BLE Mesh entre el nodo *gateway* y los nodos sensores
 
-    ```
-    static openremote_thing_t or_things[3] = {
-        [0] = {
-            .id = 0x01,
-            ...
-        },
-        [1] = {
-            .id = 0x02,
-            ...
-        },
-        [2] = {
-            .id = 0x03,
-            ...
-        }	
-    };
-    ```
+1. Selección del stack de NimBLE
+    1. Abrir el directorio del proyecto y correr el siguiente comando:
+        ```
+        idf.py menuconfig
+        ```
+    2. Navegar a `Component Config -> Bluetooth -> Bluetooth -> Host`
+    3. En `Host` seleccionar `NimBLE - BLE Only`.
+    4. Guardar cambios y salir.
+
+2. Definición de ID de la malla y de los nodos sensores
+    1. Definir `SENSOR_ID_MESH_0` y `SENSOR_ID_MESH_1` en el archivo `main/main.c` para identificar a todos los nodos que deben ser aprovisionados por el nodo *gateway*. Este ID debe coincidir con el ID definido para la malla en el nodo sensoer ([esp32c3-sensor](https://github.com/matiasvinas/esp32c3-sensor)).
+
+    2. Definir `SENSOR_ID_NODE_1`, `SENSOR_ID_NODE_2` y `SENSOR_ID_NODE_3` en el archivo `main/main.c` para cada uno de los nodos sensores. Estos valores deben coincidir con los valores definidos en el firmware de los nodos sensores. 
+
+        ```
+        /* ID de cada nodo sensor */
+        #define SENSOR_ID_NODE_1         0x01
+        #define SENSOR_ID_NODE_2         0x02
+        #define SENSOR_ID_NODE_3         0x03
+        /* ID de la malla */
+        #define SENSOR_ID_MESH_0          0x32    
+        #define SENSOR_ID_MESH_1          0x10
+        ```
 ## Conexión del control del actuador a la placa de desarrollo
 
 El dispositivo nodo gateway controla el actuador a través del pin GPIO4. El valor lógico del pin puede ser controlado desde la plataforma Open Remote.

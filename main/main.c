@@ -112,6 +112,14 @@
 
 #define ID_OFFSET_IN_UUID	2
 
+/* ID de cada nodo sensor */
+#define SENSOR_ID_NODE_1         0x01
+#define SENSOR_ID_NODE_2         0x02
+#define SENSOR_ID_NODE_3         0x03
+/* ID de la malla */
+#define SENSOR_ID_MESH_0                    0x32    
+#define SENSOR_ID_MESH_1                    0x10
+
 //MQTT CERT
 extern const uint8_t or_fiuba_tpp_pem_start[]   asm("_binary_or_fiuba_tpp_pem_start");
 extern const uint8_t or_fiuba_tpp_pem_end[]   asm("_binary_or_fiuba_tpp_pem_end");
@@ -141,21 +149,21 @@ typedef struct {
 
 static openremote_thing_t or_things[3] = {
 	[0] = {
-		.id = 0x01,
+		.id = SENSOR_ID_NODE_1,
 		.topic_temp_val = "master/client12345/writeattributevalue/temperatura/35upINKAfdfg5uyZ6ztuzE",
 		.topic_mois_val = "master/client12345/writeattributevalue/humedad_suelo/35upINKAfdfg5uyZ6ztuzE",
 		.topic_battery_val = "master/client12345/writeattributevalue/bateria/35upINKAfdfg5uyZ6ztuzE",
 		.topic_connection = "master/client12345/writeattributevalue/nodo_sensor_1_conectado/7OmPma6DzamIanc1g2RU2j",
 	},
 	[1] = {
-		.id = 0x02,
+		.id = SENSOR_ID_NODE_2,
 		.topic_temp_val = "master/client12345/writeattributevalue/temperatura/4dSlnHNmdI75WdichaKMoJ",
 		.topic_mois_val = "master/client12345/writeattributevalue/humedad_suelo/4dSlnHNmdI75WdichaKMoJ",
 		.topic_battery_val = "master/client12345/writeattributevalue/bateria/4dSlnHNmdI75WdichaKMoJ",
 		.topic_connection = "master/client12345/writeattributevalue/nodo_sensor_2_conectado/7OmPma6DzamIanc1g2RU2j",
 	},
 	[2] = {
-		.id = 0x03,
+		.id = SENSOR_ID_NODE_3,
 		.topic_temp_val = "master/client12345/writeattributevalue/temperatura/2gMjAmepzfcx70yc9nY5KS",
 		.topic_mois_val = "master/client12345/writeattributevalue/humedad_suelo/2gMjAmepzfcx70yc9nY5KS",
 		.topic_battery_val = "master/client12345/writeattributevalue/bateria/2gMjAmepzfcx70yc9nY5KS",
@@ -987,7 +995,7 @@ static void example_ble_mesh_sensor_client_cb(esp_ble_mesh_sensor_client_cb_even
 
 static esp_err_t ble_mesh_init(void)
 {
-    uint8_t match[2] = { 0x32, 0x10 };
+    uint8_t match[2] = { SENSOR_ID_MESH_0, SENSOR_ID_MESH_1 };
     esp_err_t err = ESP_OK;
 
     prov_key.net_idx = ESP_BLE_MESH_KEY_PRIMARY;
