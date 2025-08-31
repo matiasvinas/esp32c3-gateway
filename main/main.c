@@ -82,8 +82,6 @@
 #include <sys/param.h>
 
 #include "driver/gpio.h"
-//static const char *TAG = "mqtt_example";
-///MQTT Includes///
 
 #define TAG 				"BLE Mesh"
 #define TAG_BLE_CLIENT		"BLE Mesh Clie"
@@ -112,18 +110,20 @@
 
 #define ID_OFFSET_IN_UUID	2
 
-/* ID de cada nodo sensor */
+/* ID sensors*/
 #define SENSOR_ID_NODE_1         0x01
 #define SENSOR_ID_NODE_2         0x02
 #define SENSOR_ID_NODE_3         0x03
-/* ID de la malla */
-#define SENSOR_ID_MESH_0                    0x32    
-#define SENSOR_ID_MESH_1                    0x10
 
-//MQTT CERT
+/* ID BLE Mesh */
+#define SENSOR_ID_MESH_0         0x32    
+#define SENSOR_ID_MESH_1         0x10
+
+//SSL Certificates for MQTT connection
 extern const uint8_t or_fiuba_tpp_pem_start[]   asm("_binary_or_fiuba_tpp_pem_start");
 extern const uint8_t or_fiuba_tpp_pem_end[]   asm("_binary_or_fiuba_tpp_pem_end");
 
+//global variable for timeout handling
 bool is_timeout = false;
 
 //Frequency of polling data from sensors
@@ -147,6 +147,7 @@ typedef struct {
 	char* topic_log;
 } openremote_thing_t;
 
+//MQTT defined topics for each sensor
 static openremote_thing_t or_things[3] = {
 	[0] = {
 		.id = SENSOR_ID_NODE_1,
@@ -249,6 +250,19 @@ static esp_ble_mesh_prov_t provision = {
     .flags               = 0x00,
     .iv_index            = 0x00,
 };
+
+const esp_mqtt_client_config_t mqtts_cfg = {
+	    .broker.address.transport = MQTT_TRANSPORT_OVER_SSL,
+	    .broker.address.port = 8883,
+	    .broker.address.path = "dev.openremote-fiuba-tpp.com",
+	    .broker.address.hostname = "dev.openremote-fiuba-tpp.com",
+	    .broker.verification.skip_cert_common_name_check = false,
+	    .broker.verification.certificate = (const char *)or_fiuba_tpp_pem_start,
+	    .credentials.client_id = "client12345",
+	    .credentials.authentication.password = "QZxFVgZmQzdh0Nh8kann3TjIZfQ5CqfC",
+	    .credentials.username = "master:matias"
+	};
+	
 
 static esp_err_t example_ble_mesh_store_node_info(const uint8_t uuid[16], uint16_t unicast,
                                                   uint8_t elem_num)
@@ -1118,23 +1132,11 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
     }
 }
 
-const esp_mqtt_client_config_t mqtts_cfg = {
-	    .broker.address.transport = MQTT_TRANSPORT_OVER_SSL,
-	    .broker.address.port = 8883,
-	    .broker.address.path = "dev.openremote-fiuba-tpp.com",
-	    .broker.address.hostname = "dev.openremote-fiuba-tpp.com",
-	    .broker.verification.skip_cert_common_name_check = false,
-	    .broker.verification.certificate = (const char *)or_fiuba_tpp_pem_start,
-	    .credentials.client_id = "client12345",
-	    .credentials.authentication.password = "QZxFVgZmQzdh0Nh8kann3TjIZfQ5CqfC",
-	    .credentials.username = "master:matias"
-	};
-	
 static void irrigator_init(void)
 {
     ESP_LOGI(TAG, "Configuring irrigator GPIO");
     gpio_reset_pin(GPIO_NUM_4);
-    /* Set the GPIO as a push/pull output */
+    // Set the GPIO as a push/pull output
     gpio_set_direction(GPIO_NUM_4, GPIO_MODE_OUTPUT);
     
     gpio_set_level(GPIO_NUM_4, 0);
@@ -1165,7 +1167,7 @@ void app_main(void)
 
     ble_mesh_get_dev_uuid(dev_uuid);
 
-    /* Initialize the Bluetooth Mesh Subsystem */
+    // Initialize the Bluetooth Mesh Subsystem
     err = ble_mesh_init();
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Bluetooth mesh init failed (err %d)", err);
@@ -1175,11 +1177,11 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
-    /* WIFI - Configuration */
+    // Wi-Fi - Configuration
     ESP_ERROR_CHECK(example_connect());
 
 	esp_mqtt_client_handle_t client = esp_mqtt_client_init(&mqtts_cfg);
-	/* The last argument may be used to pass data to the event handler */
+	// The last argument may be used to pass data to the event handler
     esp_mqtt_client_register_event(client, ESP_EVENT_ANY_ID, mqtt_event_handler, NULL);
     esp_mqtt_client_start(client);
     	
@@ -1187,7 +1189,7 @@ void app_main(void)
 	{
 	 	for(int or_thing_idx = 0; or_thing_idx < ARRAY_SIZE(or_things); or_thing_idx++)
 	 	{
-			//check if device is connected to the mesh()
+			// Check if device is connected to the mesh
 			uint8_t id = or_things[or_thing_idx].id;
 			ESP_LOGI("Pooling", "Connecting to device ID: %d", id);
 			
@@ -1205,34 +1207,34 @@ void app_main(void)
 				}	
 			}
 			
-			//send_sensor_message()	
+			// Send GET message to the sensor	
 			ESP_LOGI(TAG_POOL, "Get data from device ID %d", id);
 			if( ESP_OK != ble_mesh_send_sensor_message(ESP_BLE_MESH_MODEL_OP_SENSOR_GET, id))
 			{
 				is_connected = false;
-			}		
+			}
+            // Wait for response or timeout
 			vTaskDelay(5000 / portTICK_PERIOD_MS);
 						
 			if(is_connected && (is_timeout != true) )
 			{
-				//publish connected state TRUE
+				// Publish connected state TRUE
 				ESP_LOGI(TAG_PUBLISH, "ID %d. Connected: %d", id, is_connected);
 				esp_mqtt_client_publish(client, or_things[or_thing_idx].topic_connection, "true", 0, 1, 0);														
 				
-				//Publish Temperature
+				// Publish Temperature
 				ESP_LOGI(TAG_PUBLISH, "ID %d. Temperature: %.2f C", id, nodes[node_idx].temp_state);
 		        char str_temperature[10];
 		        sprintf(str_temperature, "%f", nodes[node_idx].temp_state);
 		        esp_mqtt_client_publish(client, or_things[or_thing_idx].topic_temp_val, str_temperature, 0, 1, 0);
 				
-				
-				//Publish Moisture
+				// Publish Moisture
 				ESP_LOGI(TAG_PUBLISH, "ID %d. Moisture: %.2f [perc]", id, nodes[node_idx].moisture_state);
 		        char str_moisture[10];
 		        sprintf(str_moisture, "%f", nodes[node_idx].moisture_state);
 		        esp_mqtt_client_publish(client, or_things[or_thing_idx].topic_mois_val, str_moisture, 0, 1, 0);				
 				
-				//Publish Battery Level
+				// Publish Battery Level
 				ESP_LOGI(TAG_PUBLISH, "ID %d. Battery: %d mV", id, (int) nodes[node_idx].battery_state);
 				voltage = (float) nodes[node_idx].battery_state;
 				voltage = voltage / 1000;
@@ -1244,6 +1246,8 @@ void app_main(void)
 			} 
 			else 
 			{
+                // Device is not connected or not reachable
+                // publish connected state FALSE
 				is_connected = false;
 				ESP_LOGI(TAG_PUBLISH, "ID %d. Connected: %d", id, is_connected);
 				esp_mqtt_client_publish(client, or_things[or_thing_idx].topic_connection, "false", 0, 1, 0);						
@@ -1253,7 +1257,7 @@ void app_main(void)
 			
 		}
 		
-		//Delay attached to frequency topic
+		// Delay attached to frequency topic
 		ESP_LOGI(TAG_POOL, "Wait %d seconds", frequency);
 		vTaskDelay((frequency * 1000) / portTICK_PERIOD_MS);	 	      
 	}  

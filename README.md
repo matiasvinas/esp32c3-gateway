@@ -3,29 +3,20 @@ Proyecto realizado dentro del marco del Trabajo Profesional de Ingeniería Eletr
 
 ## Contenido
 
-Este repositorio contiene la descripción completa del sistema, el firmware del nodo gateway y su configuración. Para ver la descripción del nodo sensor, referirse a [esp32c3-sensor](https://github.com/matiasvinas/esp32c3-sensor).
+Este repositorio contiene la descripción completa del sistema, el firmware del nodo *gateway* y su configuración. 
+
+Para ver la descripción del sistema, referirse a [Sistema de monitoreo y gestión remota de invernaderos](https://github.com/matiasvinas/or-platform).
 
 ## Índice
 
-- [Introducción al sistema de monitoreo y gestión](#introducción-al-sistema-de-monitoreo-y-gestión)
-- [Nodo gateway](#nodo-gateway)
+- [Nodo *gateway*](#nodo-gateway)
   - [Características](#características)
-  - [Configuración Wi-Fi del nodo gateway](#configuración-wi-fi-del-nodo-gateway)
+  - [Configuración Wi-Fi del nodo *gateway*](#configuración-wi-fi-del-nodo-gateway)
   - [Configuración para la comunicación MQTT sobre SSL](#configuración-para-la-comunicación-mqtt-sobre-ssl-entre-el-nodo-gateway-y-la-plataforma-web)
-  - [Configuración para la comunicación BLE Mesh](#configuración-para-la-comunicación-ble-mesh-entre-el-nodo-gateway-y-los-nodos-sensores)
+  - [Configuración para la comunicación BLE Mesh entre el nodo *gateway* y los nodos sensores](#configuración-para-la-comunicación-ble-mesh-entre-el-nodo-gateway-y-los-nodos-sensores)
   - [Conexión del control del actuador a la placa de desarrollo](#conexión-del-control-del-actuador-a-la-placa-de-desarrollo)
 - [Puesta en marcha del sistema de sensores](#puesta-en-marcha-del-sistema-de-sensores)
 - [Enlaces útiles](#enlaces-útiles)
-
-## Introducción al sistema de monitoreo y gestión
-El sistema de monitoreo y gestión remota de invernadores consta de las siguientes partes:
-- **3 nodos sensores**: dispositivos responsables de medir temperatura, humedad del suelo, tensión de batería del sensor y envíar los datos a través de BLE Mesh al nodo gateway. El firmware del nodo sensor se encuentra en [esp32c3-sensor](https://github.com/matiasvinas/esp32c3-sensor).
-- **Nodo *gateway***: dispositivo responsable de controlar actuadores y envíar datos de los sensores a la plataforma web a través del protocolo MQTT.  
-- **Plataforma web**: inplementada en AWS en base al proyecto de código abierto [Open Remote](https://openremote.io/), con la finalidad de controlar los nodos del sistema por parte del usuario.
-
-Los nodos de la malla bluetooth están dispuestos como una red estrella donde el nodo gateway es el nodo central y el único que intercambia datos con la plataforma web.
-
-![Diagrama del dispositivo Sensor](images/diagrama-solucion-propuesta.png)
 
 # Nodo *gateway*
 
