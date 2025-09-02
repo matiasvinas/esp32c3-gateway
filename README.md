@@ -1,5 +1,5 @@
 # Sistema de monitoreo y gestión remota de invernaderos
-Proyecto realizado dentro del marco del Trabajo Profesional de Ingeniería Eletrónica de la Facultad de Ingeniería de la Universidad de Buenos Aires
+Proyecto realizado dentro del marco del Trabajo Profesional de Ingeniería Electrónica de la Facultad de Ingeniería de la Universidad de Buenos Aires
 
 ## Contenido
 
